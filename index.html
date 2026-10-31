@@ -1,78 +1,11 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Student Hub</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Student Hub</title><link rel="stylesheet" href="style.css"></head>
 <body>
-<header class="topbar">
-  <a class="brand" href="#">Student Hub</a>
-  <nav>
-    <a href="#education">Education</a>
-    <a href="#relaxation">Relaxation</a>
-    <button id="loginBtn" class="primary">Sign in with Microsoft</button>
-    <button id="logoutBtn" class="ghost hidden">Log out</button>
-  </nav>
-</header>
-
-<main>
-  <section class="hero">
-    <div>
-      <p class="eyebrow">A student community</p>
-      <h1>Learn together. Relax together.</h1>
-      <p class="lead">Share school projects in Education and join school-friendly conversations in Relaxation.</p>
-      <div class="hero-actions">
-        <button class="primary jump" data-target="education">Explore Education</button>
-        <button class="secondary jump" data-target="relaxation">Explore Relaxation</button>
-      </div>
-    </div>
-    <div class="hero-card">
-      <span>🔐</span>
-      <h3>Microsoft account sign-in</h3>
-      <p>Your display name is taken from your Microsoft account.</p>
-      <span>🛡️</span>
-      <h3>Moderated community</h3>
-      <p>Posts are checked before publishing and can be rechecked later.</p>
-    </div>
-  </section>
-
-  <section class="section" id="education">
-    <div class="section-heading">
-      <div><p class="eyebrow">📚 EDUCATION</p><h2>School projects and ideas</h2></div>
-      <button class="primary new-post" data-section="education">Create post</button>
-    </div>
-    <div class="feed" id="educationFeed"></div>
-  </section>
-
-  <section class="section alt" id="relaxation">
-    <div class="section-heading">
-      <div><p class="eyebrow">☀️ RELAXATION</p><h2>A chill, school-friendly space</h2></div>
-      <button class="primary new-post" data-section="relaxation">Create post</button>
-    </div>
-    <div class="feed" id="relaxationFeed"></div>
-  </section>
-</main>
-
+<header class="topbar"><a class="brand" href="#">Student Hub</a><nav><a href="#education">Education</a><a href="#relaxation">Relaxation</a><span id="signedInAs" class="hidden"></span><button id="loginBtn" class="primary">Sign in / Sign up</button><button id="logoutBtn" class="ghost hidden">Log out</button></nav></header>
+<main><section class="hero"><div><p class="eyebrow">A STUDENT COMMUNITY</p><h1>Learn together.<br>Relax together.</h1><p class="lead">Share school projects in Education and join school-friendly conversations in Relaxation.</p><button class="primary jump" data-target="education">Explore Education</button> <button class="secondary jump" data-target="relaxation">Explore Relaxation</button></div><div class="hero-card"><h3>🔐 Email account sign-in</h3><p>Create an account with your email and choose a display name.</p><h3>🛡️ Moderated community</h3><p>Posts are checked before they can become visible.</p></div></section>
+<section class="section" id="education"><div class="section-heading"><div><p class="eyebrow">📚 EDUCATION</p><h2>School projects and ideas</h2></div><button class="primary new-post" data-section="education">Create post</button></div><div class="feed" id="educationFeed"></div></section>
+<section class="section alt" id="relaxation"><div class="section-heading"><div><p class="eyebrow">☀️ RELAXATION</p><h2>A chill, school-friendly space</h2></div><button class="primary new-post" data-section="relaxation">Create post</button></div><div class="feed" id="relaxationFeed"></div></section></main>
 <footer>Student Hub • Be respectful • Keep it school-friendly</footer>
-
-<div class="modal hidden" id="postModal" aria-hidden="true">
-  <div class="modal-box">
-    <button class="close" id="closeModal">×</button>
-    <p class="eyebrow" id="modalSection">NEW POST</p>
-    <h2>Create a post</h2>
-    <form id="postForm">
-      <input type="hidden" id="sectionInput" />
-      <label>Title<input id="titleInput" maxlength="120" required placeholder="Give your post a title"></label>
-      <label>Content<textarea id="contentInput" maxlength="10000" required placeholder="Write your post..."></textarea></label>
-      <p class="notice">Your post will be checked before it becomes visible.</p>
-      <button class="primary" type="submit" id="submitPost">Submit for review</button>
-    </form>
-  </div>
-</div>
-
-<div id="toast" class="toast hidden"></div>
-<script type="module" src="app.js"></script>
-</body>
-</html>
+<div class="modal hidden" id="authModal"><div class="modal-box"><button class="close" id="closeAuth">×</button><p class="eyebrow">STUDENT HUB ACCOUNT</p><h2 id="authHeading">Sign in</h2><form id="authForm"><label id="nameLabel" class="hidden">Display name<input id="nameInput" maxlength="60" placeholder="Your display name"></label><label>Email<input id="emailInput" type="email" required placeholder="you@example.com"></label><label>Password<input id="passwordInput" type="password" required minlength="8" placeholder="At least 8 characters"></label><p class="notice" id="authNotice">Use your Student Hub email and password.</p><button class="primary" type="submit" id="authSubmit">Sign in</button></form><p class="notice"><span id="switchPrompt">New here?</span> <button id="switchAuth" type="button">Create an account</button></p></div></div>
+<div class="modal hidden" id="postModal"><div class="modal-box"><button class="close" id="closeModal">×</button><p class="eyebrow" id="modalSection">NEW POST</p><h2>Create a post</h2><form id="postForm"><input type="hidden" id="sectionInput"><label>Title<input id="titleInput" maxlength="120" required></label><label>Content<textarea id="contentInput" maxlength="10000" required></textarea></label><p class="notice">Your post is checked before it becomes visible. If moderation is unavailable, it will not publish.</p><button class="primary" type="submit" id="submitPost">Submit for review</button></form></div></div>
+<div id="toast" class="toast hidden"></div><script type="module" src="app.js"></script></body></html>
