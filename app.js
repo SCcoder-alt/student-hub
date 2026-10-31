@@ -1,112 +1,22 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const SUPABASE_URL = "https://hftxvwrhinrqnuqdxzcs.supabase.co/rest/v1/";
-const SUPABASE_ANON_KEY = "sb_publishable_-JzmuC2v2YDdeZaeNS4OjQ_BGiKMNLl";
+const SUPABASE_URL = "PASTE_YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_PUBLISHABLE_KEY";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-const $ = (s) => document.querySelector(s);
-const toast = (msg) => { $("#toast").textContent = msg; $("#toast").classList.remove("hidden"); setTimeout(()=>$("#toast").classList.add("hidden"), 3500); };
-
-async function getUser() {
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
-
-async function renderAuth() {
-  const user = await getUser();
-  $("#loginBtn").classList.toggle("hidden", !!user);
-  $("#logoutBtn").classList.toggle("hidden", !user);
-}
-
-$("#loginBtn").onclick = async () => {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: "azure",
-    options: { redirectTo: window.location.origin + window.location.pathname }
-  });
-  if (error) toast(error.message);
-};
-
-$("#logoutBtn").onclick = async () => {
-  await supabase.auth.signOut();
-  toast("Signed out.");
-  await renderAuth();
-};
-
-async function loadPosts(section) {
-  const feed = document.getElementById(section + "Feed");
-  feed.innerHTML = `<p class="empty">Loading posts...</p>`;
-  const { data, error } = await supabase
-    .from("posts")
-    .select("id,title,content,author_name,created_at")
-    .eq("section", section)
-    .eq("status", "published")
-    .order("created_at", { ascending: false })
-    .limit(100);
-
-  if (error) { feed.innerHTML = `<p class="empty">Could not load posts.</p>`; return; }
-  if (!data.length) { feed.innerHTML = `<p class="empty">No posts yet. Be the first to share something!</p>`; return; }
-
-  feed.innerHTML = data.map(p => `
-    <article class="post">
-      <div class="meta">${escapeHtml(p.author_name || "Student")} • ${new Date(p.created_at).toLocaleDateString()}</div>
-      <h3>${escapeHtml(p.title)}</h3>
-      <p>${escapeHtml(p.content)}</p>
-      <button class="ghost report" data-id="${p.id}">Report</button>
-    </article>`).join("");
-
-  document.querySelectorAll(".report").forEach(btn => btn.onclick = () => reportPost(btn.dataset.id));
-}
-
-function escapeHtml(v) {
-  return String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-}
-
-async function reportPost(post_id) {
-  const user = await getUser();
-  if (!user) return toast("Please sign in first.");
-  const reason = prompt("Briefly explain why you are reporting this post:");
-  if (!reason) return;
-  const { error } = await supabase.from("reports").insert({ post_id, reporter_id: user.id, reason });
-  toast(error ? error.message : "Report sent for review.");
-}
-
-document.querySelectorAll(".jump").forEach(b => b.onclick = () => document.getElementById(b.dataset.target).scrollIntoView({behavior:"smooth"}));
-document.querySelectorAll(".new-post").forEach(b => b.onclick = async () => {
-  if (!await getUser()) return toast("Please sign in with Microsoft first.");
-  $("#sectionInput").value = b.dataset.section;
-  $("#modalSection").textContent = b.dataset.section.toUpperCase();
-  $("#postModal").classList.remove("hidden");
-});
-$("#closeModal").onclick = () => $("#postModal").classList.add("hidden");
-
-$("#postForm").onsubmit = async (e) => {
-  e.preventDefault();
-  const user = await getUser();
-  if (!user) return toast("Please sign in again.");
-
-  $("#submitPost").disabled = true;
-  $("#submitPost").textContent = "Checking post...";
-
-  const payload = {
-    section: $("#sectionInput").value,
-    title: $("#titleInput").value.trim(),
-    content: $("#contentInput").value.trim()
-  };
-
-  const { data, error } = await supabase.functions.invoke("moderate-post", { body: payload });
-  $("#submitPost").disabled = false;
-  $("#submitPost").textContent = "Submit for review";
-
-  if (error) return toast("Moderation service error. Post was not published.");
-  if (!data?.allowed) return toast(data?.message || "This post could not be published.");
-
-  $("#postForm").reset();
-  $("#postModal").classList.add("hidden");
-  toast("Post published!");
-  loadPosts(payload.section);
-};
-
-supabase.auth.onAuthStateChange(() => renderAuth());
-await renderAuth();
-await loadPosts("education");
-await loadPosts("relaxation");
+const $ = s => document.querySelector(s);
+const toast = msg => { $("#toast").textContent=msg; $("#toast").classList.remove("hidden"); setTimeout(()=>$("#toast").classList.add("hidden"),4000); };
+let authMode="login";
+async function getUser(){const {data:{user}}=await supabase.auth.getUser();return user;}
+function updateAuthMode(){const signup=authMode==="signup";$("#authHeading").textContent=signup?"Create your account":"Sign in";$("#authSubmit").textContent=signup?"Create account":"Sign in";$("#nameLabel").classList.toggle("hidden",!signup);$("#nameInput").required=signup;$("#switchPrompt").textContent=signup?"Already registered?":"New here?";$("#switchAuth").textContent=signup?"Sign in":"Create an account";$("#authNotice").textContent=signup?"Choose a display name and use an email you can access.":"Use your Student Hub email and password.";}
+function openAuth(mode="login"){authMode=mode;updateAuthMode();$("#authModal").classList.remove("hidden");}
+async function renderAuth(){const user=await getUser();$("#loginBtn").classList.toggle("hidden",!!user);$("#logoutBtn").classList.toggle("hidden",!user);$("#signedInAs").textContent=user?`Signed in as ${user.user_metadata?.display_name||user.email}`:"";$("#signedInAs").classList.toggle("hidden",!user);}
+$("#loginBtn").onclick=()=>openAuth("login");$("#closeAuth").onclick=()=>$("#authModal").classList.add("hidden");$("#switchAuth").onclick=()=>{authMode=authMode==="login"?"signup":"login";updateAuthMode();};
+$("#authForm").onsubmit=async e=>{e.preventDefault();const email=$("#emailInput").value.trim(),password=$("#passwordInput").value;$("#authSubmit").disabled=true;let result;if(authMode==="signup"){result=await supabase.auth.signUp({email,password,options:{data:{display_name:$("#nameInput").value.trim()}}});}else{result=await supabase.auth.signInWithPassword({email,password});}$("#authSubmit").disabled=false;if(result.error)return toast(result.error.message);if(authMode==="signup"&&!result.data.session){$("#authModal").classList.add("hidden");return toast("Account created. Check your email to confirm, then sign in.");}$("#authModal").classList.add("hidden");$("#authForm").reset();toast(authMode==="signup"?"Account created!":"Welcome back!");await renderAuth();};
+$("#logoutBtn").onclick=async()=>{await supabase.auth.signOut();toast("Signed out.");await renderAuth();};
+function esc(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
+async function loadPosts(section){const feed=document.getElementById(section+"Feed");feed.textContent="Loading posts...";const {data,error}=await supabase.from("posts").select("id,title,content,author_name,created_at").eq("section",section).eq("status","published").order("created_at",{ascending:false}).limit(100);if(error){feed.textContent="Could not load posts.";return;}if(!data.length){feed.textContent="No posts yet. Be the first to share something!";return;}feed.innerHTML=data.map(p=>`<article class="post"><div class="meta">${esc(p.author_name||"Student")} • ${new Date(p.created_at).toLocaleDateString()}</div><h3>${esc(p.title)}</h3><p>${esc(p.content)}</p><button class="ghost report" data-id="${p.id}">Report</button></article>`).join("");document.querySelectorAll(".report").forEach(b=>b.onclick=()=>reportPost(b.dataset.id));}
+async function reportPost(post_id){const user=await getUser();if(!user)return openAuth("login");const reason=prompt("Why are you reporting this post?");if(!reason)return;const {error}=await supabase.from("reports").insert({post_id,reporter_id:user.id,reason});toast(error?"Could not send report.":"Report sent for review.");}
+document.querySelectorAll(".jump").forEach(b=>b.onclick=()=>document.getElementById(b.dataset.target).scrollIntoView({behavior:"smooth"}));
+document.querySelectorAll(".new-post").forEach(b=>b.onclick=async()=>{if(!await getUser())return openAuth("login");$("#sectionInput").value=b.dataset.section;$("#modalSection").textContent=b.dataset.section.toUpperCase();$("#postModal").classList.remove("hidden");});
+$("#closeModal").onclick=()=>$("#postModal").classList.add("hidden");
+$("#postForm").onsubmit=async e=>{e.preventDefault();if(!await getUser())return openAuth("login");$("#submitPost").disabled=true;const payload={section:$("#sectionInput").value,title:$("#titleInput").value.trim(),content:$("#contentInput").value.trim()};const {data,error}=await supabase.functions.invoke("moderate-post",{body:payload});$("#submitPost").disabled=false;if(error)return toast("Moderation service error. Post was not published.");if(!data?.allowed)return toast(data?.message||"Post was not approved.");$("#postForm").reset();$("#postModal").classList.add("hidden");toast("Post published!");loadPosts(payload.section);};
+supabase.auth.onAuthStateChange(()=>renderAuth());await renderAuth();await loadPosts("education");await loadPosts("relaxation");
