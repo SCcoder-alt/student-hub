@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Student Hub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#">Student Hub</a>
+    <nav>
+      <a href="#education">Education</a>
+      <a href="#relaxation">Relaxation</a>
+      <span id="signedInAs" class="hidden"></span>
+      <button id="adminBtn" class="secondary hidden">Admin Dashboard</button>
+      <button id="loginBtn" class="primary">Sign in / Sign up</button>
+      <button id="logoutBtn" class="ghost hidden">Log out</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">A STUDENT COMMUNITY</p>
+        <h1>Learn together.<br>Relax together.</h1>
+        <p class="lead">Share school projects in Education and join school-friendly conversations in Relaxation.</p>
+        <button class="primary jump" data-target="education">Explore Education</button>
+        <button class="secondary jump" data-target="relaxation">Explore Relaxation</button>
+      </div>
+      <div class="hero-card">
+        <h3>🔐 Email account sign-in</h3>
+        <p>Create an account with your email and choose a display name.</p>
+        <h3>🛡️ Moderated community</h3>
+        <p>Posts are checked before they can become visible.</p>
+      </div>
+    </section>
+
+    <section class="section" id="education">
+      <div class="section-heading">
+        <div><p class="eyebrow">📚 EDUCATION</p><h2>School projects and ideas</h2></div>
+        <button class="primary new-post" data-section="education">Create post</button>
+      </div>
+      <div class="feed" id="educationFeed"></div>
+    </section>
+
+    <section class="section alt" id="relaxation">
+      <div class="section-heading">
+        <div><p class="eyebrow">☀️ RELAXATION</p><h2>A chill, school-friendly space</h2></div>
+        <button class="primary new-post" data-section="relaxation">Create post</button>
+      </div>
+      <div class="feed" id="relaxationFeed"></div>
+    </section>
+
+    <section id="adminPanel" class="admin-panel hidden">
+      <div class="admin-heading">
+        <div>
+          <p class="eyebrow">STAFF AREA</p>
+          <h2>Admin Dashboard</h2>
+          <p id="adminRoleLabel" class="muted"></p>
+        </div>
+        <div class="admin-heading-actions">
+          <button id="refreshAdmin" class="secondary">Refresh</button>
+          <button id="closeAdmin" class="ghost">Close</button>
+        </div>
+      </div>
+
+      <div class="admin-grid">
+        <section class="admin-card" id="membersCard">
+          <h3>👥 Member management</h3>
+          <p class="muted">Review accounts, assign staff roles, and manage bans.</p>
+          <div id="membersList" class="admin-list">Loading members...</div>
+        </section>
+
+        <section class="admin-card">
+          <h3>🚩 Report queue</h3>
+          <p class="muted">Review posts that students have reported.</p>
+          <div id="reportsList" class="admin-list">Loading reports...</div>
+        </section>
+
+        <section class="admin-card">
+          <h3>🙈 Hidden posts</h3>
+          <p class="muted">Restore posts that were hidden by staff.</p>
+          <div id="hiddenPostsList" class="admin-list">Loading hidden posts...</div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer>Student Hub • Be respectful • Keep it school-friendly</footer>
+
+  <div class="modal hidden" id="authModal">
+    <div class="modal-box">
+      <button class="close" id="closeAuth">×</button>
+      <p class="eyebrow">STUDENT HUB ACCOUNT</p>
+      <h2 id="authHeading">Sign in</h2>
+      <form id="authForm">
+        <label id="nameLabel" class="hidden">Display name<input id="nameInput" maxlength="60" placeholder="Your display name"></label>
+        <label>Email<input id="emailInput" type="email" required placeholder="you@example.com"></label>
+        <label>Password<input id="passwordInput" type="password" required minlength="8" placeholder="At least 8 characters"></label>
+        <p class="notice" id="authNotice">Use your Student Hub email and password.</p>
+        <button class="primary" type="submit" id="authSubmit">Sign in</button>
+      </form>
+      <p class="notice"><span id="switchPrompt">New here?</span> <button id="switchAuth" type="button">Create an account</button></p>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="postModal">
+    <div class="modal-box">
+      <button class="close" id="closeModal">×</button>
+      <p class="eyebrow" id="modalSection">NEW POST</p>
+      <h2>Create a post</h2>
+      <form id="postForm">
+        <input type="hidden" id="sectionInput">
+        <label>Title<input id="titleInput" maxlength="120" required></label>
+        <label>Content<textarea id="contentInput" maxlength="10000" required></textarea></label>
+        <p class="notice">Your post is checked before it becomes visible. If moderation is unavailable, it will not publish.</p>
+        <button class="primary" type="submit" id="submitPost">Submit for review</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
