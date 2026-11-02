@@ -66,6 +66,12 @@
       </div>
 
       <div class="admin-grid">
+        <section class="admin-card">
+          <h3>🛡️ Pending Review</h3>
+          <p class="muted">AI-flagged posts wait here for staff review before publication.</p>
+          <div id="pendingReviewList" class="admin-list">Loading pending posts...</div>
+        </section>
+
         <section class="admin-card" id="membersCard">
           <h3>👥 Member management</h3>
           <p class="muted">Review accounts, assign staff roles, and manage bans.</p>
@@ -114,7 +120,7 @@
         <input type="hidden" id="sectionInput">
         <label>Title<input id="titleInput" maxlength="120" required></label>
         <label>Content<textarea id="contentInput" maxlength="10000" required></textarea></label>
-        <p class="notice">Your post is checked before it becomes visible. If moderation is unavailable, it will not publish.</p>
+        <p class="notice">Posts are checked by automated moderation. Unflagged posts publish immediately; flagged posts wait for staff review.</p>
         <button class="primary" type="submit" id="submitPost">Submit for review</button>
       </form>
     </div>
