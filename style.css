@@ -64,3 +64,8 @@ footer{text-align:center;padding:35px;color:#71809a}
  .member-row{flex-direction:column}
  .member-actions{justify-content:flex-start}
 }
+
+
+/* AI moderation review queue */
+#pendingReviewList .admin-item { border-left: 4px solid #d69b24; }
+#pendingReviewList .post-actions { margin-top: 14px; }
