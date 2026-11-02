@@ -274,8 +274,17 @@ $("#postForm").onsubmit = async (event) => {
 
   $("#postForm").reset();
   $("#postModal").classList.add("hidden");
-  toast("Post published!");
+
+  if (data.status === "pending_review") {
+    toast("Your post was sent to the moderator review queue.");
+  } else {
+    toast("Post published!");
+  }
+
   await loadPosts(payload.section);
+  if (isStaff() && !$("#adminPanel").classList.contains("hidden")) {
+    await loadPendingReview();
+  }
 };
 
 function adminMemberActions(member) {
@@ -361,6 +370,85 @@ async function loadReports() {
   }).join("");
 }
 
+
+async function runReviewRpc(action, postId) {
+  const rpcName = action === "approve" ? "approve_pending_post" : "reject_pending_post";
+  const { error } = await supabase.rpc(rpcName, { _post_id: postId });
+  if (error) return toast(error.message);
+
+  toast(action === "approve" ? "Post approved and published." : "Post rejected and removed.");
+  await refreshFeeds();
+  await loadAdminDashboard();
+}
+
+async function loadPendingReview() {
+  const host = $("#pendingReviewList");
+  if (!host) return;
+
+  host.textContent = "Loading posts awaiting review...";
+  const { data, error } = await supabase
+    .from("posts")
+    .select("id,title,content,author_name,section,created_at,moderation,status")
+    .eq("status", "pending_review")
+    .order("created_at", { ascending: true })
+    .limit(100);
+
+  if (error) {
+    host.textContent = `Could not load pending posts: ${error.message}`;
+    return;
+  }
+  if (!data?.length) {
+    host.textContent = "No posts are waiting for review.";
+    return;
+  }
+
+  const sensitiveCategories = new Set([
+    "sexual",
+    "sexual/minors",
+    "self-harm",
+    "self-harm/intent",
+    "self-harm/instructions",
+    "violence/graphic"
+  ]);
+
+  host.innerHTML = data.map((post) => {
+    const categories = Object.entries(post.moderation?.categories || {})
+      .filter(([, flagged]) => flagged === true)
+      .map(([category]) => category);
+    const categoryText = categories.length
+      ? categories.map(escapeHTML).join(", ")
+      : "Flagged for additional review";
+    const sensitive = categories.some((category) => sensitiveCategories.has(category));
+
+    if (sensitive) {
+      return `
+        <article class="admin-item">
+          <div class="meta">${escapeHTML(post.section)} • ${new Date(post.created_at).toLocaleString()}</div>
+          <h3>Safety-sensitive post held for adult review</h3>
+          <p class="muted">The post text is intentionally hidden in this dashboard. A trusted adult should review this item. Do not copy or redistribute its contents.</p>
+          <p class="muted">Flag categories: ${categoryText}</p>
+          <div class="post-actions">
+            <button class="small-button danger" data-review-action="reject" data-id="${post.id}">Reject and remove</button>
+          </div>
+        </article>
+      `;
+    }
+
+    return `
+      <article class="admin-item">
+        <div class="meta">${escapeHTML(post.author_name || "Student")} • ${escapeHTML(post.section)} • ${new Date(post.created_at).toLocaleString()}</div>
+        <h3>${escapeHTML(post.title)}</h3>
+        <p>${escapeHTML(post.content)}</p>
+        <p class="muted">AI flag categories: ${categoryText}</p>
+        <div class="post-actions">
+          <button class="small-button" data-review-action="approve" data-id="${post.id}">Approve and publish</button>
+          <button class="small-button danger" data-review-action="reject" data-id="${post.id}">Reject</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
 async function loadHiddenPosts() {
   const host = $("#hiddenPostsList");
   host.textContent = "Loading hidden posts...";
@@ -397,7 +485,7 @@ async function loadAdminDashboard() {
   $("#adminPanel").classList.remove("hidden");
   $("#adminRoleLabel").textContent = `Signed in with ${currentRole} permissions`;
   $("#membersCard").classList.toggle("hidden", !canManageMembers());
-  await Promise.all([loadReports(), loadHiddenPosts(), loadMembers()]);
+  await Promise.all([loadPendingReview(), loadReports(), loadHiddenPosts(), loadMembers()]);
 }
 
 $("#adminBtn").onclick = loadAdminDashboard;
@@ -405,6 +493,15 @@ $("#closeAdmin").onclick = () => $("#adminPanel").classList.add("hidden");
 $("#refreshAdmin").onclick = loadAdminDashboard;
 
 document.addEventListener("click", async (event) => {
+  const reviewButton = event.target.closest("[data-review-action]");
+  if (reviewButton) {
+    const action = reviewButton.dataset.reviewAction;
+    const postId = reviewButton.dataset.id;
+    if (action === "reject" && !confirm("Reject and remove this post from Student Hub?")) return;
+    await runReviewRpc(action, postId);
+    return;
+  }
+
   const postButton = event.target.closest("[data-action]");
   if (postButton) {
     const action = postButton.dataset.action;
