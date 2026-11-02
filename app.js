@@ -266,7 +266,7 @@ $("#postForm").onsubmit = async (event) => {
     title: $("#titleInput").value.trim(),
     content: $("#contentInput").value.trim()
   };
-  const { data, error } = await supabase.functions.invoke("moderate-post", { body: payload });
+  const { data, error } = await supabase.functions.invoke("supabase-functions-deploy-moderate-post", { body: payload });
   $("#submitPost").disabled = false;
 
   if (error) return toast("Moderation service error. Post was not published.");
