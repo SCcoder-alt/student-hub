@@ -14,6 +14,7 @@ const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => 
 let authMode = "login";
 let currentUser = null;
 let currentRole = null;
+let notificationChannel = null;
 
 function toast(message) {
   const node = $("#toast");
@@ -102,6 +103,15 @@ async function refreshIdentity() {
       return;
     }
   }
+
+  $("#notificationBtn").classList.toggle("hidden", !currentUser);
+  if (currentUser) {
+    await loadNotifications(false);
+  } else {
+    $("#notificationsPanel").classList.add("hidden");
+    $("#notificationsList").textContent = "Sign in to view notifications.";
+    $("#notificationCount").textContent = "0";
+  }
 }
 
 $("#loginBtn").onclick = () => openAuth("login");
@@ -151,6 +161,78 @@ $("#logoutBtn").onclick = async () => {
   toast("Signed out.");
   await refreshFeeds();
 };
+
+async function loadNotifications(showErrors = true) {
+  const host = $("#notificationsList");
+  if (!currentUser || !host) return;
+
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("id,type,message,is_read,created_at,post_id")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error("Could not load notifications:", error);
+    if (showErrors) host.textContent = `Could not load notifications: ${error.message}`;
+    return;
+  }
+
+  const unread = (data || []).filter((item) => !item.is_read).length;
+  $("#notificationCount").textContent = unread > 99 ? "99+" : String(unread);
+  $("#notificationCount").classList.toggle("hidden", unread === 0);
+
+  if (!data?.length) {
+    host.innerHTML = '<p class="muted">You do not have any notifications yet.</p>';
+    return;
+  }
+
+  host.innerHTML = data.map((item) => `
+    <article class="notification-item ${item.is_read ? "read" : "unread"}" data-notification-id="${item.id}">
+      <div class="notification-item-heading">
+        <strong>${item.type === "post_approved" ? "Post approved" : item.type === "post_rejected" ? "Post not approved" : "Student Hub notification"}</strong>
+        <span class="meta">${new Date(item.created_at).toLocaleString()}</span>
+      </div>
+      <p>${escapeHTML(item.message)}</p>
+      ${item.is_read ? '<span class="muted">Read</span>' : '<button class="small-button" data-mark-notification-read="' + item.id + '">Mark as read</button>'}
+    </article>
+  `).join("");
+}
+
+async function markNotificationRead(notificationId) {
+  const { error } = await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("id", notificationId)
+    .eq("user_id", currentUser.id);
+  if (error) return toast(`Could not update notification: ${error.message}`);
+  await loadNotifications();
+}
+
+$("#notificationBtn").onclick = async () => {
+  const panel = $("#notificationsPanel");
+  panel.classList.toggle("hidden");
+  if (!panel.classList.contains("hidden")) await loadNotifications();
+};
+$("#closeNotifications").onclick = () => $("#notificationsPanel").classList.add("hidden");
+$("#refreshNotifications").onclick = () => loadNotifications();
+$("#markAllRead").onclick = async () => {
+  if (!currentUser) return;
+  const { error } = await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("user_id", currentUser.id)
+    .eq("is_read", false);
+  if (error) return toast(`Could not mark notifications as read: ${error.message}`);
+  await loadNotifications();
+};
+document.addEventListener("click", async (event) => {
+  const markButton = event.target.closest("[data-mark-notification-read]");
+  if (markButton) await markNotificationRead(markButton.dataset.markNotificationRead);
+});
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && currentUser) loadNotifications(false);
+});
 
 async function refreshFeeds() {
   await Promise.all([loadPosts("education"), loadPosts("relaxation")]);
