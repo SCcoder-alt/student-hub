@@ -14,6 +14,9 @@
       <a href="#relaxation">Relaxation</a>
       <span id="signedInAs" class="hidden"></span>
       <button id="notificationBtn" class="secondary hidden" type="button">Notifications <span id="notificationCount" class="notification-count hidden">0</span></button>
+      <button id="profileBtn" class="secondary hidden" type="button">Profile</button>
+      <button id="messagesBtn" class="secondary hidden" type="button">Messages</button>
+      <button id="leaderboardBtn" class="secondary hidden" type="button">Points</button>
       <button id="adminBtn" class="secondary hidden">Admin Dashboard</button>
       <button id="loginBtn" class="primary">Sign in / Sign up</button>
       <button id="logoutBtn" class="ghost hidden">Log out</button>
@@ -65,6 +68,28 @@
       <div class="feed" id="relaxationFeed"></div>
     </section>
 
+
+    <section id="profilePanel" class="feature-panel hidden">
+      <div class="feature-heading"><div><p class="eyebrow">YOUR COMMUNITY PROFILE</p><h2 id="profileName">Student profile</h2></div><button class="ghost" onclick="document.getElementById('profilePanel').classList.add('hidden')">Close</button></div>
+      <div class="profile-layout"><div id="profileAvatar" class="profile-avatar"><span>S</span></div><div><p id="profileBio" class="lead">No bio yet.</p><button id="profileMessageButton" class="primary hidden" type="button">Request a private chat</button></div></div>
+      <form id="profileEditForm" class="profile-edit-form hidden"><h3>Edit your profile</h3><label>Display name<input id="profileEditName" maxlength="60" required></label><label>Short bio<textarea id="profileEditBio" maxlength="240" placeholder="A little about your school interests"></textarea></label><label>Profile picture URL (HTTPS)<input id="profileEditAvatar" type="url" placeholder="https://..."></label><p class="notice">Only use an image you have permission to share. Avoid adding your school, address, phone number, or other private details.</p><button class="primary" type="submit">Save profile</button></form>
+      <h3>Published post history</h3><div id="profilePosts" class="profile-posts"></div>
+    </section>
+
+    <section id="messagesPanel" class="feature-panel hidden">
+      <div class="feature-heading"><div><p class="eyebrow">PRIVATE MESSAGES</p><h2>Messages</h2></div><button class="ghost" onclick="document.getElementById('messagesPanel').classList.add('hidden')">Close</button></div>
+      <p class="notice">Chats are text-only and require the other student to accept your request. You can report a message or block a student. Do not share private information.</p>
+      <div class="message-search"><label>Find a student<input id="studentSearch" maxlength="60" placeholder="Search display names"></label><button id="searchStudentsBtn" class="secondary" type="button">Search</button></div>
+      <div id="studentSearchResults" class="admin-list muted">Search for a student to request a chat.</div>
+      <div class="messages-layout"><div class="messages-sidebar"><h3>Requests</h3><div id="messageRequests" class="admin-list">Loading requests...</div><h3>Conversations</h3><div id="conversationList" class="admin-list">Loading conversations...</div></div><div class="chat-area"><div id="chatMessages" class="chat-messages">Choose an accepted conversation to view messages.</div><button id="blockStudentBtn" class="small-button danger hidden" type="button">Block student</button><form id="chatComposer" class="chat-composer hidden"><textarea id="chatInput" maxlength="2000" required placeholder="Write a respectful message"></textarea><button id="sendMessageBtn" class="primary" type="submit">Send</button></form></div></div>
+    </section>
+
+    <section id="leaderboardPanel" class="feature-panel hidden">
+      <div class="feature-heading"><div><p class="eyebrow">COMMUNITY CONTRIBUTIONS</p><h2>Points & achievements</h2></div><button class="ghost" onclick="document.getElementById('leaderboardPanel').classList.add('hidden')">Close</button></div>
+      <p class="notice">New published posts earn 10 points. Staff-approved comments earn 2 points. Points reward helpful contributions, not popularity.</p>
+      <div id="leaderboardList" class="leaderboard-list">Loading leaderboard...</div>
+    </section>
+
     <section id="adminPanel" class="admin-panel hidden">
       <div class="admin-heading">
         <div>
@@ -93,6 +118,16 @@
           <div id="membersList" class="admin-list">Loading members...</div>
         </section>
 
+        <section class="admin-card">
+          <h3>🔒 Reported private messages</h3>
+          <p class="muted">Only messages students report are shown to staff here.</p>
+          <div id="dmReportsList" class="admin-list">Loading reports...</div>
+        </section>
+        <section class="admin-card">
+          <h3>💬 Comment review</h3>
+          <p class="muted">Comments stay private until staff approves them.</p>
+          <div id="pendingCommentsList" class="admin-list">Loading comments...</div>
+        </section>
         <section class="admin-card">
           <h3>🚩 Report queue</h3>
           <p class="muted">Review posts that students have reported.</p>
