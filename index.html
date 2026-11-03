@@ -13,11 +13,24 @@
       <a href="#education">Education</a>
       <a href="#relaxation">Relaxation</a>
       <span id="signedInAs" class="hidden"></span>
+      <button id="notificationBtn" class="secondary hidden" type="button">Notifications <span id="notificationCount" class="notification-count hidden">0</span></button>
       <button id="adminBtn" class="secondary hidden">Admin Dashboard</button>
       <button id="loginBtn" class="primary">Sign in / Sign up</button>
       <button id="logoutBtn" class="ghost hidden">Log out</button>
     </nav>
   </header>
+
+  <section id="notificationsPanel" class="notifications-panel hidden" aria-label="Notifications">
+    <div class="notifications-heading">
+      <div><p class="eyebrow">YOUR ACCOUNT</p><h2>Notifications</h2></div>
+      <div class="notifications-actions">
+        <button id="refreshNotifications" class="secondary" type="button">Refresh</button>
+        <button id="markAllRead" class="secondary" type="button">Mark all read</button>
+        <button id="closeNotifications" class="ghost" type="button">Close</button>
+      </div>
+    </div>
+    <div id="notificationsList" class="notifications-list">Sign in to view notifications.</div>
+  </section>
 
   <main>
     <section class="hero">
