@@ -105,6 +105,9 @@ async function refreshIdentity() {
   }
 
   $("#notificationBtn").classList.toggle("hidden", !currentUser);
+  $("#profileBtn").classList.toggle("hidden", !currentUser);
+  $("#messagesBtn").classList.toggle("hidden", !currentUser);
+  $("#leaderboardBtn").classList.toggle("hidden", !currentUser);
   if (currentUser) {
     await loadNotifications(false);
   } else {
@@ -277,32 +280,42 @@ async function loadPosts(section) {
   const feed = document.getElementById(`${section}Feed`);
   if (!feed) return;
   feed.textContent = "Loading posts...";
-
   const { data, error } = await supabase
     .from("posts")
-    .select("id,title,content,author_name,created_at,is_pinned,status")
+    .select("id,author_id,title,content,author_name,created_at,is_pinned,status")
     .eq("section", section)
     .eq("status", "published")
     .order("is_pinned", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(100);
+  if (error) { console.error(error); feed.textContent = "Could not load posts."; return; }
+  if (!data?.length) { feed.textContent = "No posts yet. Be the first to share something!"; return; }
 
-  if (error) {
-    console.error(error);
-    feed.textContent = "Could not load posts.";
-    return;
+  const ids = data.map(post => post.id);
+  let likes = [], comments = [];
+  if (currentUser) {
+    const [likesResult, commentsResult] = await Promise.all([
+      supabase.from("post_likes").select("post_id,user_id").in("post_id", ids),
+      supabase.from("post_comments").select("post_id").in("post_id", ids).eq("status", "published")
+    ]);
+    if (!likesResult.error) likes = likesResult.data || [];
+    if (!commentsResult.error) comments = commentsResult.data || [];
   }
-  if (!data?.length) {
-    feed.textContent = "No posts yet. Be the first to share something!";
-    return;
-  }
+  const likeCounts = {}, commentCounts = {}, likedByMe = new Set();
+  likes.forEach(row => { likeCounts[row.post_id] = (likeCounts[row.post_id] || 0) + 1; if (row.user_id === currentUser?.id) likedByMe.add(row.post_id); });
+  comments.forEach(row => { commentCounts[row.post_id] = (commentCounts[row.post_id] || 0) + 1; });
 
-  feed.innerHTML = data.map((post) => `
-    <article class="post">
+  feed.innerHTML = data.map(post => `
+    <article class="post" data-post-card="${post.id}">
       ${post.is_pinned ? '<div class="pinned-label">📌 Pinned</div>' : ""}
-      <div class="meta">${escapeHTML(post.author_name || "Student")} • ${new Date(post.created_at).toLocaleDateString()}</div>
+      <div class="meta"><button class="profile-link" data-profile-id="${post.author_id}">${escapeHTML(post.author_name || "Student")}</button> • ${new Date(post.created_at).toLocaleDateString()}</div>
       <h3>${escapeHTML(post.title)}</h3>
       <p>${escapeHTML(post.content)}</p>
+      <div class="social-actions">
+        <button class="small-button ${likedByMe.has(post.id) ? "liked" : ""}" data-like-post="${post.id}" ${currentUser ? "" : "disabled title="Sign in to like posts""}>${likedByMe.has(post.id) ? "♥ Liked" : "♡ Like"} (${likeCounts[post.id] || 0})</button>
+        <button class="small-button" data-open-comments="${post.id}">Comments (${commentCounts[post.id] || 0})</button>
+      </div>
+      <div class="comments-area hidden" id="comments-${post.id}"></div>
       ${postActionButtons(post)}
       <button class="ghost report" data-id="${post.id}">Report</button>
     </article>
@@ -531,6 +544,31 @@ async function loadPendingReview() {
   }).join("");
 }
 
+
+async function loadDmReports() {
+  const host = $("#dmReportsList");
+  if (!host) return;
+  if (!isStaff()) { host.textContent = "Staff access required."; return; }
+  host.textContent = "Loading reported messages...";
+  const { data: reports, error } = await supabase.from("dm_reports")
+    .select("id,message_id,reporter_id,reason,created_at,status")
+    .eq("status", "open").order("created_at", { ascending: false }).limit(100);
+  if (error) { host.textContent = `Could not load message reports: ${error.message}`; return; }
+  if (!reports?.length) { host.textContent = "No open private-message reports."; return; }
+  const messageIds = reports.map(r => r.message_id);
+  const userIds = [...new Set(reports.map(r => r.reporter_id))];
+  const [{ data: messages }, { data: reporters }] = await Promise.all([
+    supabase.from("dm_messages").select("id,sender_id,body,created_at").in("id", messageIds),
+    supabase.from("profiles").select("id,display_name").in("id", userIds)
+  ]);
+  const messageById = Object.fromEntries((messages || []).map(m => [m.id, m]));
+  const nameById = Object.fromEntries((reporters || []).map(p => [p.id, p.display_name]));
+  host.innerHTML = reports.map(report => {
+    const message = messageById[report.message_id];
+    return `<article class="admin-item"><div class="meta">${new Date(report.created_at).toLocaleString()} • Reported by ${escapeHTML(nameById[report.reporter_id] || "Student")}</div><p><strong>Reported message:</strong> ${escapeHTML(message?.body || "Message unavailable")}</p><p><strong>Reason:</strong> ${escapeHTML(report.reason)}</p><button class="small-button" data-dm-report-reviewed="${report.id}">Mark reviewed</button></article>`;
+  }).join("");
+}
+
 async function loadHiddenPosts() {
   const host = $("#hiddenPostsList");
   host.textContent = "Loading hidden posts...";
@@ -568,7 +606,7 @@ async function loadAdminDashboard() {
   $("#adminRoleLabel").textContent = `Signed in with ${currentRole} permissions`;
   $("#membersCard").classList.toggle("hidden", !canManageMembers());
   $("#createReviewTestPost").classList.toggle("hidden", !canManagePosts());
-  await Promise.all([loadPendingReview(), loadReports(), loadHiddenPosts(), loadMembers()]);
+  await Promise.all([loadPendingReview(), loadPendingComments(), loadDmReports(), loadReports(), loadHiddenPosts(), loadMembers()]);
 }
 
 $("#createReviewTestPost").onclick = async () => {
@@ -644,6 +682,295 @@ document.addEventListener("click", async (event) => {
   }
   await loadMembers();
 });
+
+
+// -----------------------------------------------------------------------------
+// PROFILES, COMMENTS, MESSAGING, POINTS AND ACHIEVEMENTS
+// -----------------------------------------------------------------------------
+let activeConversationId = null;
+let activeChatOtherUserId = null;
+
+function showFeaturePanel(id) {
+  ["profilePanel", "messagesPanel", "leaderboardPanel"].forEach(panelId => {
+    const node = document.getElementById(panelId);
+    if (node) node.classList.toggle("hidden", panelId !== id);
+  });
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function openProfile(userId) {
+  if (!currentUser) return openAuth("login");
+  const { data: profile, error } = await supabase.from("profiles")
+    .select("id,display_name,bio,avatar_url,updated_at").eq("id", userId).maybeSingle();
+  if (error || !profile) return toast(error?.message || "Profile not found.");
+  const own = profile.id === currentUser.id;
+  $("#profileName").textContent = profile.display_name || "Student";
+  $("#profileBio").textContent = profile.bio || "No bio yet.";
+  $("#profileAvatar").innerHTML = profile.avatar_url
+    ? `<img src="${escapeHTML(profile.avatar_url)}" alt="Profile picture" referrerpolicy="no-referrer">`
+    : `<span>${escapeHTML((profile.display_name || "S").slice(0,1).toUpperCase())}</span>`;
+  $("#profileEditForm").classList.toggle("hidden", !own);
+  $("#profileMessageButton").classList.toggle("hidden", own);
+  $("#profileEditName").value = profile.display_name || "";
+  $("#profileEditBio").value = profile.bio || "";
+  $("#profileEditAvatar").value = profile.avatar_url || "";
+  $("#profileMessageButton").dataset.userId = profile.id;
+  const { data: posts, error: postsError } = await supabase.from("posts")
+    .select("id,title,content,section,created_at").eq("author_id", userId)
+    .eq("status", "published").order("created_at", { ascending: false }).limit(30);
+  $("#profilePosts").innerHTML = postsError ? `<p class="muted">Could not load post history: ${escapeHTML(postsError.message)}</p>` :
+    (posts?.length ? posts.map(post => `<article class="mini-post"><span class="meta">${escapeHTML(post.section)} • ${new Date(post.created_at).toLocaleDateString()}</span><strong>${escapeHTML(post.title)}</strong><p>${escapeHTML(post.content)}</p></article>`).join("") : '<p class="muted">No published posts yet.</p>');
+  showFeaturePanel("profilePanel");
+}
+
+$("#profileBtn").onclick = () => currentUser && openProfile(currentUser.id);
+$("#profileMessageButton").onclick = async () => {
+  const targetId = $("#profileMessageButton").dataset.userId;
+  if (!targetId) return;
+  showFeaturePanel("messagesPanel");
+  const { error } = await supabase.rpc("create_dm_request", { _to_user_id: targetId });
+  toast(error ? error.message : "Message request sent. They must accept before you can chat.");
+  await loadMessagesPanel();
+};
+$("#profileEditForm").onsubmit = async event => {
+  event.preventDefault();
+  if (!currentUser) return;
+  const avatar = $("#profileEditAvatar").value.trim();
+  const displayName = $("#profileEditName").value.trim();
+  if (avatar && !/^https:\/\//i.test(avatar)) return toast("Profile picture URL must start with https://");
+  const { error: authError } = await supabase.auth.updateUser({ data: { display_name: displayName } });
+  if (authError) return toast(`Could not update account name: ${authError.message}`);
+  const { error } = await supabase.from("profiles").update({
+    display_name: displayName,
+    bio: $("#profileEditBio").value.trim(),
+    avatar_url: avatar,
+    updated_at: new Date().toISOString()
+  }).eq("id", currentUser.id);
+  if (error) return toast(`Could not save profile: ${error.message}`);
+  await refreshIdentity();
+  toast("Profile saved.");
+  await openProfile(currentUser.id);
+};
+
+async function loadComments(postId) {
+  const host = document.getElementById(`comments-${postId}`);
+  if (!host) return;
+  host.classList.remove("hidden");
+  host.textContent = "Loading comments...";
+  const { data, error } = await supabase.from("post_comments")
+    .select("id,author_id,author_name,content,created_at")
+    .eq("post_id", postId).eq("status", "published")
+    .order("created_at", { ascending: true }).limit(100);
+  if (error) { host.textContent = `Could not load comments: ${error.message}`; return; }
+  host.innerHTML = `<div class="comments-list">${data?.length ? data.map(comment => `
+    <div class="comment"><strong>${escapeHTML(comment.author_name || "Student")}</strong><p>${escapeHTML(comment.content)}</p><span class="meta">${new Date(comment.created_at).toLocaleString()}</span></div>
+  `).join("") : '<p class="muted">No approved comments yet.</p>'}</div>
+  ${currentUser ? `<form class="comment-form" data-comment-form="${postId}"><label>Add a comment<textarea name="content" maxlength="1500" required placeholder="Keep it kind and school-friendly"></textarea></label><button class="small-button" type="submit">Submit for review</button><p class="meta">Comments appear after staff approval.</p></form>` : '<p class="muted">Sign in to comment.</p>'}`;
+}
+
+async function toggleLike(postId, button) {
+  if (!currentUser) return openAuth("login");
+  const { data: existing, error: lookupError } = await supabase.from("post_likes")
+    .select("post_id").eq("post_id", postId).eq("user_id", currentUser.id).maybeSingle();
+  if (lookupError) return toast(lookupError.message);
+  const result = existing
+    ? await supabase.from("post_likes").delete().eq("post_id", postId).eq("user_id", currentUser.id)
+    : await supabase.from("post_likes").insert({ post_id: postId, user_id: currentUser.id });
+  if (result.error) return toast(result.error.message);
+  await loadPosts(document.getElementById("educationFeed").contains(button) ? "education" : "relaxation");
+}
+
+async function submitComment(postId, form) {
+  if (!currentUser) return openAuth("login");
+  const content = new FormData(form).get("content")?.toString().trim();
+  if (!content) return;
+  const { error } = await supabase.from("post_comments").insert({
+    post_id: postId, author_id: currentUser.id, content, status: "pending_review"
+  });
+  if (error) return toast(`Could not submit comment: ${error.message}`);
+  toast("Comment sent to staff for approval.");
+  form.reset();
+}
+
+document.addEventListener("click", async event => {
+  const profileLink = event.target.closest("[data-profile-id]");
+  if (profileLink) { await openProfile(profileLink.dataset.profileId); return; }
+  const likeButton = event.target.closest("[data-like-post]");
+  if (likeButton) { await toggleLike(likeButton.dataset.likePost, likeButton); return; }
+  const commentsButton = event.target.closest("[data-open-comments]");
+  if (commentsButton) {
+    const postId = commentsButton.dataset.openComments;
+    const host = document.getElementById(`comments-${postId}`);
+    if (!currentUser) return openAuth("login");
+    if (host && !host.classList.contains("hidden")) host.classList.add("hidden");
+    else await loadComments(postId);
+    return;
+  }
+});
+document.addEventListener("submit", async event => {
+  const form = event.target.closest("[data-comment-form]");
+  if (form) { event.preventDefault(); await submitComment(form.dataset.commentForm, form); }
+});
+
+async function loadPendingComments() {
+  const host = $("#pendingCommentsList");
+  if (!host) return;
+  if (!isStaff()) { host.textContent = "Staff access required."; return; }
+  host.textContent = "Loading comments awaiting approval...";
+  const { data, error } = await supabase.from("post_comments")
+    .select("id,post_id,author_name,content,created_at")
+    .eq("status", "pending_review").order("created_at", { ascending: true }).limit(100);
+  if (error) { host.textContent = `Could not load comments: ${error.message}`; return; }
+  if (!data?.length) { host.textContent = "No comments are waiting for approval."; return; }
+  host.innerHTML = data.map(comment => `<article class="admin-item"><div class="meta">${escapeHTML(comment.author_name)} • ${new Date(comment.created_at).toLocaleString()}</div><p>${escapeHTML(comment.content)}</p><div class="post-actions"><button class="small-button" data-comment-review="approve" data-id="${comment.id}">Approve</button><button class="small-button danger" data-comment-review="reject" data-id="${comment.id}">Reject</button></div></article>`).join("");
+}
+
+async function searchStudents() {
+  if (!currentUser) return openAuth("login");
+  const term = $("#studentSearch").value.trim();
+  const host = $("#studentSearchResults");
+  if (term.length < 2) { host.textContent = "Type at least two letters to search students."; return; }
+  const { data, error } = await supabase.from("profiles").select("id,display_name")
+    .ilike("display_name", `%${term}%`).neq("id", currentUser.id).limit(10);
+  if (error) { host.textContent = error.message; return; }
+  if (!data?.length) { host.textContent = "No matching profiles found."; return; }
+  host.innerHTML = data.map(person => `<div class="member-row"><strong>${escapeHTML(person.display_name)}</strong><button class="small-button" data-message-request="${person.id}">Request chat</button></div>`).join("");
+}
+$("#searchStudentsBtn").onclick = searchStudents;
+$("#studentSearch").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); searchStudents(); } });
+
+async function loadMessagesPanel() {
+  if (!currentUser) return openAuth("login");
+  const reqHost = $("#messageRequests");
+  const convoHost = $("#conversationList");
+  reqHost.textContent = "Loading requests...";
+  convoHost.textContent = "Loading conversations...";
+  const { data: requests, error: requestError } = await supabase.from("dm_requests")
+    .select("id,from_user_id,to_user_id,created_at,status").eq("to_user_id", currentUser.id)
+    .eq("status", "pending").order("created_at", { ascending: false });
+  if (requestError) reqHost.textContent = `Could not load requests: ${requestError.message}`;
+  else if (!requests?.length) reqHost.textContent = "No incoming message requests.";
+  else {
+    const ids = requests.map(r => r.from_user_id);
+    const { data: profiles } = await supabase.from("profiles").select("id,display_name").in("id", ids);
+    const names = Object.fromEntries((profiles || []).map(p => [p.id, p.display_name]));
+    reqHost.innerHTML = requests.map(r => `<div class="member-row"><strong>${escapeHTML(names[r.from_user_id] || "Student")}</strong><div><button class="small-button" data-dm-accept="${r.id}">Accept</button> <button class="small-button danger" data-dm-decline="${r.id}">Decline</button></div></div>`).join("");
+  }
+  const { data: memberships, error: memberError } = await supabase.from("dm_conversation_members")
+    .select("conversation_id").eq("user_id", currentUser.id);
+  if (memberError) { convoHost.textContent = `Could not load conversations: ${memberError.message}`; return; }
+  const conversationIds = (memberships || []).map(m => m.conversation_id);
+  if (!conversationIds.length) { convoHost.textContent = "No accepted conversations yet."; return; }
+  const { data: members, error: membersError } = await supabase.from("dm_conversation_members")
+    .select("conversation_id,user_id").in("conversation_id", conversationIds);
+  if (membersError) { convoHost.textContent = membersError.message; return; }
+  const otherIds = [...new Set((members || []).filter(m => m.user_id !== currentUser.id).map(m => m.user_id))];
+  const { data: profiles } = await supabase.from("profiles").select("id,display_name").in("id", otherIds);
+  const names = Object.fromEntries((profiles || []).map(p => [p.id, p.display_name]));
+  const byConversation = {};
+  (members || []).forEach(m => { if (m.user_id !== currentUser.id) byConversation[m.conversation_id] = m.user_id; });
+  convoHost.innerHTML = conversationIds.map(id => `<button class="conversation-button ${id === activeConversationId ? "selected" : ""}" data-open-conversation="${id}" data-other-user="${byConversation[id] || ""}">${escapeHTML(names[byConversation[id]] || "Student")}</button>`).join("");
+}
+
+async function openConversation(conversationId, otherUserId) {
+  activeConversationId = conversationId;
+  activeChatOtherUserId = otherUserId;
+  const host = $("#chatMessages");
+  host.textContent = "Loading messages...";
+  const { data, error } = await supabase.from("dm_messages")
+    .select("id,sender_id,body,created_at").eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true }).limit(200);
+  if (error) { host.textContent = `Could not load messages: ${error.message}`; return; }
+  host.innerHTML = data?.length ? data.map(message => `<article class="chat-message ${message.sender_id === currentUser.id ? "mine" : "theirs"}"><p>${escapeHTML(message.body)}</p><span class="meta">${new Date(message.created_at).toLocaleString()}</span><button class="text-button" data-report-message="${message.id}">Report</button></article>`).join("") : '<p class="muted">This conversation is ready. Keep messages respectful.</p>';
+  $("#chatComposer").classList.remove("hidden");
+  $("#blockStudentBtn").classList.remove("hidden");
+  $("#chatComposer").dataset.conversationId = conversationId;
+  await loadMessagesPanel();
+}
+
+$("#chatComposer").onsubmit = async event => {
+  event.preventDefault();
+  if (!activeConversationId || !currentUser) return;
+  const body = $("#chatInput").value.trim();
+  if (!body) return;
+  const button = $("#sendMessageBtn"); button.disabled = true;
+  const { error } = await supabase.from("dm_messages").insert({
+    conversation_id: activeConversationId, sender_id: currentUser.id, body
+  });
+  button.disabled = false;
+  if (error) return toast(`Message not sent: ${error.message}`);
+  $("#chatInput").value = "";
+  await openConversation(activeConversationId, activeChatOtherUserId);
+};
+$("#blockStudentBtn").onclick = async () => {
+  if (!activeChatOtherUserId || !confirm("Block this student? They will not be able to message you.")) return;
+  const { error } = await supabase.rpc("block_student", { _blocked_user_id: activeChatOtherUserId });
+  if (error) return toast(error.message);
+  activeConversationId = null; activeChatOtherUserId = null;
+  $("#chatMessages").textContent = "Student blocked. This conversation can no longer be used.";
+  $("#chatComposer").classList.add("hidden");
+  $("#blockStudentBtn").classList.add("hidden");
+  toast("Student blocked."); await loadMessagesPanel();
+};
+
+$("#messagesBtn").onclick = async () => { showFeaturePanel("messagesPanel"); await loadMessagesPanel(); };
+$("#leaderboardBtn").onclick = async () => { showFeaturePanel("leaderboardPanel"); await loadLeaderboard(); };
+
+async function loadLeaderboard() {
+  const host = $("#leaderboardList");
+  host.textContent = "Loading points and achievements...";
+  const { data, error } = await supabase.rpc("get_student_leaderboard");
+  if (error) { host.textContent = `Could not load leaderboard: ${error.message}`; return; }
+  if (!data?.length) { host.textContent = "Points will appear when new posts and comments are approved."; return; }
+  host.innerHTML = data.map((row, index) => {
+    const points = Number(row.total_points || 0);
+    const badges = [points >= 100 ? "Community Builder" : null, points >= 50 ? "Helpful Contributor" : null, points >= 10 ? "First Contribution" : null].filter(Boolean);
+    return `<div class="leaderboard-row"><span class="rank">${index + 1}</span><strong>${escapeHTML(row.display_name)}</strong><span class="points">${points} pts</span><div class="achievement-tags">${badges.map(b => `<span>${escapeHTML(b)}</span>`).join("")}</div></div>`;
+  }).join("");
+}
+
+// Feature buttons and request/report actions.
+document.addEventListener("click", async event => {
+  const requestButton = event.target.closest("[data-message-request]");
+  if (requestButton) {
+    const { error } = await supabase.rpc("create_dm_request", { _to_user_id: requestButton.dataset.messageRequest });
+    toast(error ? error.message : "Message request sent. They must accept before chatting.");
+    await loadMessagesPanel(); return;
+  }
+  const acceptButton = event.target.closest("[data-dm-accept]");
+  if (acceptButton) {
+    const { error } = await supabase.rpc("accept_dm_request", { _request_id: acceptButton.dataset.dmAccept });
+    if (error) toast(error.message); else toast("Request accepted. You can now chat.");
+    await loadMessagesPanel(); return;
+  }
+  const declineButton = event.target.closest("[data-dm-decline]");
+  if (declineButton) {
+    const { error } = await supabase.rpc("decline_dm_request", { _request_id: declineButton.dataset.dmDecline });
+    toast(error ? error.message : "Request declined."); await loadMessagesPanel(); return;
+  }
+  const conversationButton = event.target.closest("[data-open-conversation]");
+  if (conversationButton) { await openConversation(conversationButton.dataset.openConversation, conversationButton.dataset.otherUser); return; }
+  const reportMessageButton = event.target.closest("[data-report-message]");
+  if (reportMessageButton) {
+    const reason = prompt("Why are you reporting this message?");
+    if (!reason?.trim()) return;
+    const { error } = await supabase.from("dm_reports").insert({ message_id: reportMessageButton.dataset.reportMessage, reporter_id: currentUser.id, reason: reason.trim() });
+    toast(error ? error.message : "Message reported to staff."); return;
+  }
+  const dmReviewedButton = event.target.closest("[data-dm-report-reviewed]");
+  if (dmReviewedButton) {
+    const { error } = await supabase.rpc("mark_dm_report_reviewed", { _report_id: dmReviewedButton.dataset.dmReportReviewed });
+    toast(error ? error.message : "Message report marked reviewed.");
+    await loadDmReports(); return;
+  }
+  const commentReviewButton = event.target.closest("[data-comment-review]");
+  if (commentReviewButton) {
+    const { error } = await supabase.rpc("review_post_comment", { _comment_id: commentReviewButton.dataset.id, _decision: commentReviewButton.dataset.commentReview });
+    toast(error ? error.message : (commentReviewButton.dataset.commentReview === "approve" ? "Comment approved." : "Comment rejected."));
+    await loadPendingComments(); await refreshFeeds(); await loadLeaderboard(); return;
+  }
+});
+
 
 supabase.auth.onAuthStateChange(async () => {
   await refreshIdentity();
