@@ -69,3 +69,18 @@ footer{text-align:center;padding:35px;color:#71809a}
 /* AI moderation review queue */
 #pendingReviewList .admin-item { border-left: 4px solid #d69b24; }
 #pendingReviewList .post-actions { margin-top: 14px; }
+
+
+/* In-app post decision notifications */
+.notification-count{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;margin-left:5px;border-radius:999px;background:#315efb;color:#fff;font-size:.72rem;font-weight:800}
+.notifications-panel{position:relative;z-index:4;padding:24px 7%;background:#fff;border-bottom:1px solid #e7ebf3;box-shadow:0 8px 20px #1720330a}
+.notifications-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px}
+.notifications-heading h2{margin:0}
+.notifications-actions{display:flex;gap:8px;flex-wrap:wrap}
+.notifications-list{display:grid;gap:10px;max-width:1000px}
+.notification-item{padding:15px 17px;border:1px solid #e6ebf2;border-radius:14px;background:#f8faff}
+.notification-item.unread{border-left:4px solid #315efb;background:#f1f5ff}
+.notification-item.read{opacity:.8}
+.notification-item-heading{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.notification-item p{margin:8px 0;line-height:1.5}
+@media(max-width:760px){.notifications-panel{padding:20px 5%}.notifications-heading{align-items:flex-start;flex-direction:column}.notifications-actions{width:100%}.notifications-actions button{flex:1}}
