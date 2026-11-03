@@ -485,8 +485,23 @@ async function loadAdminDashboard() {
   $("#adminPanel").classList.remove("hidden");
   $("#adminRoleLabel").textContent = `Signed in with ${currentRole} permissions`;
   $("#membersCard").classList.toggle("hidden", !canManageMembers());
+  $("#createReviewTestPost").classList.toggle("hidden", !canManagePosts());
   await Promise.all([loadPendingReview(), loadReports(), loadHiddenPosts(), loadMembers()]);
 }
+
+$("#createReviewTestPost").onclick = async () => {
+  if (!canManagePosts()) return toast("Only Owners and Admins can create review test posts.");
+  const button = $("#createReviewTestPost");
+  button.disabled = true;
+  const { data, error } = await supabase.rpc("create_review_test_post");
+  button.disabled = false;
+  if (error) {
+    console.error("Could not create review test post:", error);
+    return toast(`Could not create test post: ${error.message}`);
+  }
+  toast("Harmless test post added to Pending Review.");
+  await loadPendingReview();
+};
 
 $("#adminBtn").onclick = loadAdminDashboard;
 $("#closeAdmin").onclick = () => $("#adminPanel").classList.add("hidden");
