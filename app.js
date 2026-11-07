@@ -376,10 +376,28 @@ $("#postForm").onsubmit = async (event) => {
 
   $("#postForm").reset();
   $("#postModal").classList.add("hidden");
-
   if (data.status === "pending_review") {
     toast("Your post was sent to the moderator review queue.");
   } else {
+    toast("Your post was published!");
+  }
+
+  await refreshFeeds();
+};
+
+function memberPanelMarkup(content, total, pageCount) {
+  const start = total === 0 ? 0 : memberPage * MEMBER_PAGE_SIZE + 1;
+  const end = Math.min(total, (memberPage + 1) * MEMBER_PAGE_SIZE);
+
+  return `
+    <div class="member-toolbar">
+      <input
+        id="memberSearchInput"
+        type="search"
+        placeholder="Search members..."
+        value="${escapeHTML(memberSearch)}"
+      />
+
       <select id="memberRoleFilter">
         <option value="all" ${memberRoleFilter === "all" ? "selected" : ""}>All roles</option>
         <option value="owner" ${memberRoleFilter === "owner" ? "selected" : ""}>Owners</option>
@@ -420,7 +438,6 @@ $("#postForm").onsubmit = async (event) => {
     </div>
   `;
 }
-
 async function loadMembers() {
   const host = $("#membersList");
 
@@ -552,29 +569,7 @@ function adminMemberActions(member) {
 }
 
 
-  host.textContent = "Loading members...";
-  const { data, error } = await supabase.rpc("admin_list_members_page", ...);
-  if (error) {
-    host.textContent = `Could not load members: ${error.message}`;
-    return;
-  }
-  if (!data?.length) {
-    host.textContent = "No members found.";
-    return;
-  }
 
-  host.innerHTML = data.map((member) => `
-    <div class="member-row">
-      <div class="member-info">
-        <strong>${escapeHTML(member.display_name || "Student")}</strong>
-        <span>${escapeHTML(member.email || "")}</span>
-        <span class="role-tag">${escapeHTML(member.role)}${member.is_banned ? " • BANNED" : ""}</span>
-        ${member.is_banned ? `<span class="muted">Reason: ${escapeHTML(member.ban_reason || "Not supplied")}</span>` : ""}
-      </div>
-      <div class="member-actions">${adminMemberActions(member)}</div>
-    </div>
-  `).join("");
-}
 
 async function loadReports() {
   const host = $("#reportsList");
