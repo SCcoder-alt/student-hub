@@ -312,7 +312,7 @@ async function loadPosts(section) {
       <h3>${escapeHTML(post.title)}</h3>
       <p>${escapeHTML(post.content)}</p>
       <div class="social-actions">
-        <button class="small-button ${likedByMe.has(post.id) ? "liked" : ""}" data-like-post="${post.id}" ${currentUser ? "" : "disabled title="Sign in to like posts""}>${likedByMe.has(post.id) ? "♥ Liked" : "♡ Like"} (${likeCounts[post.id] || 0})</button>
+        <button class="small-button ${likedByMe.has(post.id) ? "liked" : ""}" data-like-post="${post.id}" ${currentUser ? "" : 'disabled title="Sign in to like posts"'}>${likedByMe.has(post.id) ? "♥ Liked" : "♡ Like"} (${likeCounts[post.id] || 0})</button>
         <button class="small-button" data-open-comments="${post.id}">Comments (${commentCounts[post.id] || 0})</button>
       </div>
       <div class="comments-area hidden" id="comments-${post.id}"></div>
