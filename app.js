@@ -574,12 +574,7 @@ function adminMemberActions(member) {
   return actions || '<span class="muted">No actions available</span>';
 }
 
-async function loadMembers() {
-  const host = $("#membersList");
-  if (!canManageMembers()) {
-    host.innerHTML = '<p class="muted">Only Owners and Admins can manage members.</p>';
-    return;
-  }
+
   host.textContent = "Loading members...";
   const { data, error } = await supabase.rpc("admin_list_members_page", ...);
   if (error) {
