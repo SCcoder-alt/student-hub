@@ -689,6 +689,7 @@ document.addEventListener("click", async (event) => {
 // -----------------------------------------------------------------------------
 let activeConversationId = null;
 let activeChatOtherUserId = null;
+let activeConversationType = "direct";
 
 function showFeaturePanel(id) {
   ["profilePanel", "messagesPanel", "leaderboardPanel"].forEach(panelId => {
@@ -834,7 +835,7 @@ async function searchStudents() {
     .ilike("display_name", `%${term}%`).neq("id", currentUser.id).limit(10);
   if (error) { host.textContent = error.message; return; }
   if (!data?.length) { host.textContent = "No matching profiles found."; return; }
-  host.innerHTML = data.map(person => `<div class="member-row"><strong>${escapeHTML(person.display_name)}</strong><button class="small-button" data-message-request="${person.id}">Request chat</button></div>`).join("");
+  host.innerHTML = data.map(person => `<div class="member-row"><label class="group-select-label"><input type="checkbox" data-group-select="${person.id}"> ${escapeHTML(person.display_name)}</label><button class="small-button" data-message-request="${person.id}">Request chat</button></div>`).join("");
 }
 $("#searchStudentsBtn").onclick = searchStudents;
 $("#studentSearch").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); searchStudents(); } });
@@ -845,46 +846,95 @@ async function loadMessagesPanel() {
   const convoHost = $("#conversationList");
   reqHost.textContent = "Loading requests...";
   convoHost.textContent = "Loading conversations...";
-  const { data: requests, error: requestError } = await supabase.from("dm_requests")
-    .select("id,from_user_id,to_user_id,created_at,status").eq("to_user_id", currentUser.id)
-    .eq("status", "pending").order("created_at", { ascending: false });
-  if (requestError) reqHost.textContent = `Could not load requests: ${requestError.message}`;
-  else if (!requests?.length) reqHost.textContent = "No incoming message requests.";
-  else {
+
+  const [{ data: requests, error: requestError }, { data: groupInvites, error: groupInviteError }] = await Promise.all([
+    supabase.from("dm_requests").select("id,from_user_id,to_user_id,created_at,status")
+      .eq("to_user_id", currentUser.id).eq("status", "pending").order("created_at", { ascending: false }),
+    supabase.from("dm_group_invites").select("id,conversation_id,inviter_id,created_at,status")
+      .eq("invited_user_id", currentUser.id).eq("status", "pending").order("created_at", { ascending: false })
+  ]);
+  const requestRows = [];
+  if (requestError) requestRows.push(`<p class="muted">Could not load direct requests: ${escapeHTML(requestError.message)}</p>`);
+  else if (requests?.length) {
     const ids = requests.map(r => r.from_user_id);
     const { data: profiles } = await supabase.from("profiles").select("id,display_name").in("id", ids);
     const names = Object.fromEntries((profiles || []).map(p => [p.id, p.display_name]));
-    reqHost.innerHTML = requests.map(r => `<div class="member-row"><strong>${escapeHTML(names[r.from_user_id] || "Student")}</strong><div><button class="small-button" data-dm-accept="${r.id}">Accept</button> <button class="small-button danger" data-dm-decline="${r.id}">Decline</button></div></div>`).join("");
+    requestRows.push(...requests.map(r => `<div class="member-row"><strong>${escapeHTML(names[r.from_user_id] || "Student")} <span class="meta">(direct chat)</span></strong><div><button class="small-button" data-dm-accept="${r.id}">Accept</button> <button class="small-button danger" data-dm-decline="${r.id}">Decline</button></div></div>`));
   }
+  if (groupInviteError) requestRows.push(`<p class="muted">Could not load group invitations: ${escapeHTML(groupInviteError.message)}</p>`);
+  else if (groupInvites?.length) {
+    const inviterIds = [...new Set(groupInvites.map(r => r.inviter_id))];
+    const groupIds = [...new Set(groupInvites.map(r => r.conversation_id))];
+    const [{ data: inviters }, { data: groups }] = await Promise.all([
+      supabase.from("profiles").select("id,display_name").in("id", inviterIds),
+      supabase.from("dm_conversations").select("id,title").in("id", groupIds)
+    ]);
+    const inviterNames = Object.fromEntries((inviters || []).map(p => [p.id, p.display_name]));
+    const groupNames = Object.fromEntries((groups || []).map(g => [g.id, g.title]));
+    requestRows.push(...groupInvites.map(inv => `<div class="member-row"><strong>${escapeHTML(groupNames[inv.conversation_id] || "Group chat")} <span class="meta">(invited by ${escapeHTML(inviterNames[inv.inviter_id] || "Student")})</span></strong><div><button class="small-button" data-group-accept="${inv.id}">Join</button> <button class="small-button danger" data-group-decline="${inv.id}">Decline</button></div></div>`));
+  }
+  reqHost.innerHTML = requestRows.length ? requestRows.join("") : "No pending requests or group invitations.";
+
   const { data: memberships, error: memberError } = await supabase.from("dm_conversation_members")
     .select("conversation_id").eq("user_id", currentUser.id);
   if (memberError) { convoHost.textContent = `Could not load conversations: ${memberError.message}`; return; }
   const conversationIds = (memberships || []).map(m => m.conversation_id);
   if (!conversationIds.length) { convoHost.textContent = "No accepted conversations yet."; return; }
-  const { data: members, error: membersError } = await supabase.from("dm_conversation_members")
-    .select("conversation_id,user_id").in("conversation_id", conversationIds);
-  if (membersError) { convoHost.textContent = membersError.message; return; }
+  const [{ data: members, error: membersError }, { data: conversations, error: conversationsError }] = await Promise.all([
+    supabase.from("dm_conversation_members").select("conversation_id,user_id,member_role").in("conversation_id", conversationIds),
+    supabase.from("dm_conversations").select("id,conversation_type,title").in("id", conversationIds)
+  ]);
+  if (membersError || conversationsError) { convoHost.textContent = membersError?.message || conversationsError?.message; return; }
   const otherIds = [...new Set((members || []).filter(m => m.user_id !== currentUser.id).map(m => m.user_id))];
-  const { data: profiles } = await supabase.from("profiles").select("id,display_name").in("id", otherIds);
+  const { data: profiles } = otherIds.length
+    ? await supabase.from("profiles").select("id,display_name").in("id", otherIds)
+    : { data: [] };
   const names = Object.fromEntries((profiles || []).map(p => [p.id, p.display_name]));
-  const byConversation = {};
-  (members || []).forEach(m => { if (m.user_id !== currentUser.id) byConversation[m.conversation_id] = m.user_id; });
-  convoHost.innerHTML = conversationIds.map(id => `<button class="conversation-button ${id === activeConversationId ? "selected" : ""}" data-open-conversation="${id}" data-other-user="${byConversation[id] || ""}">${escapeHTML(names[byConversation[id]] || "Student")}</button>`).join("");
+  const convById = Object.fromEntries((conversations || []).map(c => [c.id, c]));
+  convoHost.innerHTML = conversationIds.map(id => {
+    const conv = convById[id] || {};
+    const others = (members || []).filter(m => m.conversation_id === id && m.user_id !== currentUser.id);
+    const label = conv.conversation_type === "group"
+      ? `${conv.title || "Group chat"} · ${others.length + 1} members`
+      : (names[others[0]?.user_id] || "Student");
+    return `<button class="conversation-button ${id === activeConversationId ? "selected" : ""}" data-open-conversation="${id}" data-other-user="${others[0]?.user_id || ""}">${escapeHTML(label)}</button>`;
+  }).join("");
 }
 
 async function openConversation(conversationId, otherUserId) {
   activeConversationId = conversationId;
-  activeChatOtherUserId = otherUserId;
+  activeChatOtherUserId = otherUserId || null;
   const host = $("#chatMessages");
   host.textContent = "Loading messages...";
+  const { data: conversation, error: conversationError } = await supabase.from("dm_conversations")
+    .select("id,conversation_type,title,created_by").eq("id", conversationId).maybeSingle();
+  if (conversationError || !conversation) { host.textContent = conversationError?.message || "Conversation not found."; return; }
+  activeConversationType = conversation.conversation_type || "direct";
   const { data, error } = await supabase.from("dm_messages")
     .select("id,sender_id,body,created_at").eq("conversation_id", conversationId)
     .order("created_at", { ascending: true }).limit(200);
   if (error) { host.textContent = `Could not load messages: ${error.message}`; return; }
   host.innerHTML = data?.length ? data.map(message => `<article class="chat-message ${message.sender_id === currentUser.id ? "mine" : "theirs"}"><p>${escapeHTML(message.body)}</p><span class="meta">${new Date(message.created_at).toLocaleString()}</span><button class="text-button" data-report-message="${message.id}">Report</button></article>`).join("") : '<p class="muted">This conversation is ready. Keep messages respectful.</p>';
   $("#chatComposer").classList.remove("hidden");
-  $("#blockStudentBtn").classList.remove("hidden");
+  $("#blockStudentBtn").classList.toggle("hidden", activeConversationType === "group");
+  $("#leaveGroupBtn").classList.toggle("hidden", activeConversationType !== "group");
+  $("#inviteSelectedGroupBtn").classList.toggle("hidden", activeConversationType !== "group");
   $("#chatComposer").dataset.conversationId = conversationId;
+  const info = $("#groupChatInfo");
+  if (activeConversationType === "group") {
+    const { data: members, error: memberError } = await supabase.from("dm_conversation_members")
+      .select("user_id,member_role").eq("conversation_id", conversationId);
+    if (memberError) info.textContent = `Could not load group members: ${memberError.message}`;
+    else {
+      const ids = (members || []).map(m => m.user_id);
+      const { data: profiles } = ids.length ? await supabase.from("profiles").select("id,display_name").in("id", ids) : { data: [] };
+      const names = Object.fromEntries((profiles || []).map(p => [p.id, p.display_name]));
+      const myMembership = (members || []).find(m => m.user_id === currentUser.id);
+      info.innerHTML = `<strong>${escapeHTML(conversation.title || "Group chat")}</strong><p class="meta">Members: ${(members || []).length}/12</p><div class="group-member-list">${(members || []).map(m => `<span>${escapeHTML(names[m.user_id] || "Student")}${m.member_role === "owner" ? " · group owner" : ""}${myMembership?.member_role === "owner" && m.user_id !== currentUser.id ? ` <button class="text-button" data-group-remove="${m.user_id}" data-group-id="${conversationId}">Remove</button>` : ""}</span>`).join(" · ")}</div>`;
+    }
+  } else {
+    info.textContent = "";
+  }
   await loadMessagesPanel();
 }
 
@@ -910,7 +960,59 @@ $("#blockStudentBtn").onclick = async () => {
   $("#chatMessages").textContent = "Student blocked. This conversation can no longer be used.";
   $("#chatComposer").classList.add("hidden");
   $("#blockStudentBtn").classList.add("hidden");
+  $("#leaveGroupBtn").classList.add("hidden");
+  $("#inviteSelectedGroupBtn").classList.add("hidden");
+  $("#groupChatInfo").textContent = "";
   toast("Student blocked."); await loadMessagesPanel();
+};
+
+
+
+$("#createGroupBtn").onclick = async () => {
+  if (!currentUser) return openAuth("login");
+  const title = $("#groupNameInput").value.trim();
+  const selected = [...document.querySelectorAll("[data-group-select]:checked")].map(node => node.dataset.groupSelect);
+  if (title.length < 3 || title.length > 40) return toast("Group name must be 3–40 characters.");
+  if (!selected.length) return toast("Search for students and select at least one member.");
+  if (selected.length > 11) return toast("A group can have up to 12 members, including you.");
+  const button = $("#createGroupBtn"); button.disabled = true;
+  const { data, error } = await supabase.rpc("create_group_conversation", { _title: title, _member_ids: selected });
+  button.disabled = false;
+  if (error) return toast(`Could not create group: ${error.message}`);
+  $("#groupNameInput").value = "";
+  document.querySelectorAll("[data-group-select]").forEach(node => { node.checked = false; });
+  toast("Group created. Invitations were sent for members to accept.");
+  await loadMessagesPanel();
+  await openConversation(data, null);
+};
+
+$("#inviteSelectedGroupBtn").onclick = async () => {
+  if (!activeConversationId || activeConversationType !== "group") return;
+  const selected = [...document.querySelectorAll("[data-group-select]:checked")].map(node => node.dataset.groupSelect);
+  if (!selected.length) return toast("Search for students and select at least one to invite.");
+  let invited = 0;
+  for (const userId of selected) {
+    const { error } = await supabase.rpc("invite_group_member", { _conversation_id: activeConversationId, _user_id: userId });
+    if (error) { toast(`Some invitations could not be sent: ${error.message}`); break; }
+    invited++;
+  }
+  document.querySelectorAll("[data-group-select]").forEach(node => { node.checked = false; });
+  if (invited) toast(`${invited} group invitation${invited === 1 ? "" : "s"} sent.`);
+  await openConversation(activeConversationId, null);
+};
+
+$("#leaveGroupBtn").onclick = async () => {
+  if (!activeConversationId || activeConversationType !== "group") return;
+  if (!confirm("Leave this group chat? You will need a new invitation to rejoin.")) return;
+  const { error } = await supabase.rpc("leave_group_conversation", { _conversation_id: activeConversationId });
+  if (error) return toast(error.message);
+  activeConversationId = null; activeChatOtherUserId = null;
+  $("#chatMessages").textContent = "You left the group.";
+  $("#chatComposer").classList.add("hidden");
+  $("#leaveGroupBtn").classList.add("hidden");
+  $("#inviteSelectedGroupBtn").classList.add("hidden");
+  $("#groupChatInfo").textContent = "";
+  toast("You left the group."); await loadMessagesPanel();
 };
 
 $("#messagesBtn").onclick = async () => { showFeaturePanel("messagesPanel"); await loadMessagesPanel(); };
@@ -947,6 +1049,29 @@ document.addEventListener("click", async event => {
   if (declineButton) {
     const { error } = await supabase.rpc("decline_dm_request", { _request_id: declineButton.dataset.dmDecline });
     toast(error ? error.message : "Request declined."); await loadMessagesPanel(); return;
+  }
+  const groupAcceptButton = event.target.closest("[data-group-accept]");
+  if (groupAcceptButton) {
+    const { data, error } = await supabase.rpc("accept_group_invite", { _invite_id: groupAcceptButton.dataset.groupAccept });
+    if (error) toast(error.message); else toast("You joined the group chat.");
+    await loadMessagesPanel();
+    if (data) await openConversation(data, null);
+    return;
+  }
+  const groupDeclineButton = event.target.closest("[data-group-decline]");
+  if (groupDeclineButton) {
+    const { error } = await supabase.rpc("decline_group_invite", { _invite_id: groupDeclineButton.dataset.groupDecline });
+    toast(error ? error.message : "Group invitation declined."); await loadMessagesPanel(); return;
+  }
+  const groupRemoveButton = event.target.closest("[data-group-remove]");
+  if (groupRemoveButton) {
+    if (!confirm("Remove this member from the group?")) return;
+    const { error } = await supabase.rpc("remove_group_member", {
+      _conversation_id: groupRemoveButton.dataset.groupId,
+      _user_id: groupRemoveButton.dataset.groupRemove
+    });
+    if (error) toast(error.message); else toast("Member removed from the group.");
+    await openConversation(activeConversationId, null); return;
   }
   const conversationButton = event.target.closest("[data-open-conversation]");
   if (conversationButton) { await openConversation(conversationButton.dataset.openConversation, conversationButton.dataset.otherUser); return; }
