@@ -14,6 +14,13 @@ const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => 
 let authMode = "login";
 let currentUser = null;
 let currentRole = null;
+let memberSearch = "";
+let memberRoleFilter = "all";
+let memberBanFilter = "all";
+let memberPage = 0;
+let memberSearchTimer = null;
+let memberLoadRequest = 0;
+const MEMBER_PAGE_SIZE = 10;
 let notificationChannel = null;
 
 function toast(message) {
@@ -574,7 +581,7 @@ async function loadMembers() {
     return;
   }
   host.textContent = "Loading members...";
-  const { data, error } = await supabase.rpc("admin_list_members");
+  const { data, error } = await supabase.rpc("admin_list_members_page", ...);
   if (error) {
     host.textContent = `Could not load members: ${error.message}`;
     return;
