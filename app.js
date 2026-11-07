@@ -380,29 +380,6 @@ $("#postForm").onsubmit = async (event) => {
   if (data.status === "pending_review") {
     toast("Your post was sent to the moderator review queue.");
   } else {
-    toast("Post published!");
-  }
-
-  await loadPosts(payload.section);
-  if (isStaff() && !$("#adminPanel").classList.contains("hidden")) {
-    await loadPendingReview();
-  }
-};
-
-
-function memberPanelMarkup(content, total, pageCount) {
-  const start = total ? memberPage * MEMBER_PAGE_SIZE + 1 : 0;
-  const end = Math.min((memberPage + 1) * MEMBER_PAGE_SIZE, total);
-
-  return `
-    <div class="member-toolbar">
-      <input
-        id="memberSearchInput"
-        type="search"
-        placeholder="Search name or email..."
-        value="${escapeHTML(memberSearch)}"
-      >
-
       <select id="memberRoleFilter">
         <option value="all" ${memberRoleFilter === "all" ? "selected" : ""}>All roles</option>
         <option value="owner" ${memberRoleFilter === "owner" ? "selected" : ""}>Owners</option>
