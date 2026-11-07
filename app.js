@@ -382,6 +382,171 @@ $("#postForm").onsubmit = async (event) => {
   }
 };
 
+
+function memberPanelMarkup(content, total, pageCount) {
+  const start = total ? memberPage * MEMBER_PAGE_SIZE + 1 : 0;
+  const end = Math.min((memberPage + 1) * MEMBER_PAGE_SIZE, total);
+
+  return `
+    <div class="member-toolbar">
+      <input
+        id="memberSearchInput"
+        type="search"
+        placeholder="Search name or email..."
+        value="${escapeHTML(memberSearch)}"
+      >
+
+      <select id="memberRoleFilter">
+        <option value="all" ${memberRoleFilter === "all" ? "selected" : ""}>All roles</option>
+        <option value="owner" ${memberRoleFilter === "owner" ? "selected" : ""}>Owners</option>
+        <option value="admin" ${memberRoleFilter === "admin" ? "selected" : ""}>Admins</option>
+        <option value="moderator" ${memberRoleFilter === "moderator" ? "selected" : ""}>Moderators</option>
+        <option value="member" ${memberRoleFilter === "member" ? "selected" : ""}>Members</option>
+      </select>
+
+      <select id="memberBanFilter">
+        <option value="all" ${memberBanFilter === "all" ? "selected" : ""}>All statuses</option>
+        <option value="active" ${memberBanFilter === "active" ? "selected" : ""}>Active</option>
+        <option value="banned" ${memberBanFilter === "banned" ? "selected" : ""}>Banned</option>
+      </select>
+    </div>
+
+    <div id="memberResults">${content}</div>
+
+    <div class="member-pagination">
+      <span class="muted">
+        Showing ${start}–${end} of ${total} members
+      </span>
+
+      <div>
+        <button class="small-button"
+          data-member-page="prev"
+          ${memberPage === 0 ? "disabled" : ""}>
+          Previous
+        </button>
+
+        <span>${memberPage + 1} / ${pageCount}</span>
+
+        <button class="small-button"
+          data-member-page="next"
+          ${memberPage + 1 >= pageCount ? "disabled" : ""}>
+          Next
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function loadMembers() {
+  const host = $("#membersList");
+
+  if (!canManageMembers()) {
+    host.textContent = "Only Owners and Admins can manage members.";
+    return;
+  }
+
+  const requestId = ++memberLoadRequest;
+
+  host.innerHTML = memberPanelMarkup(
+    '<p class="muted">Loading members...</p>', 0, 1
+  );
+
+  const { data, error } = await supabase.rpc(
+    "admin_list_members_page",
+    {
+      _search: memberSearch.trim() || null,
+      _role: memberRoleFilter === "all" ? null : memberRoleFilter,
+      _banned: memberBanFilter === "all"
+        ? null
+        : memberBanFilter === "banned",
+      _limit: MEMBER_PAGE_SIZE,
+      _offset: memberPage * MEMBER_PAGE_SIZE
+    }
+  );
+
+  if (requestId !== memberLoadRequest) return;
+
+  if (error) {
+    host.innerHTML = memberPanelMarkup(
+      `<p class="muted">Could not load members: ${escapeHTML(error.message)}</p>`,
+      0, 1
+    );
+    return;
+  }
+
+  if (!data?.length && memberPage > 0) {
+    memberPage--;
+    return loadMembers();
+  }
+
+  const total = Number(data?.[0]?.total_count || 0);
+  const pageCount = Math.max(1, Math.ceil(total / MEMBER_PAGE_SIZE));
+
+  const content = data?.length
+    ? data.map(member => `
+        <div class="member-row">
+          <div class="member-info">
+            <strong>${escapeHTML(member.display_name || "Student")}</strong>
+            <span>${escapeHTML(member.email || "")}</span>
+            <span class="role-tag">
+              ${escapeHTML(member.role)}
+              ${member.is_banned ? " • BANNED" : ""}
+            </span>
+            ${member.is_banned
+              ? `<span class="muted">Reason: ${escapeHTML(member.ban_reason || "Not supplied")}</span>`
+              : ""}
+          </div>
+
+          <div class="member-actions">
+            ${adminMemberActions(member)}
+          </div>
+        </div>
+      `).join("")
+    : '<p class="muted">No matching members found.</p>';
+
+  host.innerHTML = memberPanelMarkup(content, total, pageCount);
+}
+
+// Search members
+document.addEventListener("input", event => {
+  if (event.target.id !== "memberSearchInput") return;
+
+  memberSearch = event.target.value;
+  memberPage = 0;
+
+  clearTimeout(memberSearchTimer);
+  memberSearchTimer = setTimeout(loadMembers, 300);
+});
+
+// Filter members
+document.addEventListener("change", event => {
+  if (event.target.id === "memberRoleFilter") {
+    memberRoleFilter = event.target.value;
+    memberPage = 0;
+    loadMembers();
+  }
+
+  if (event.target.id === "memberBanFilter") {
+    memberBanFilter = event.target.value;
+    memberPage = 0;
+    loadMembers();
+  }
+});
+
+// Pagination buttons
+document.addEventListener("click", event => {
+  const button = event.target.closest("[data-member-page]");
+  if (!button || button.disabled) return;
+
+  if (button.dataset.memberPage === "prev") {
+    memberPage = Math.max(0, memberPage - 1);
+  } else {
+    memberPage++;
+  }
+
+  loadMembers();
+});
+
 function adminMemberActions(member) {
   const isSelf = member.user_id === currentUser?.id;
   const isOwner = member.role === "owner";
