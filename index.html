@@ -171,6 +171,11 @@
         <input type="hidden" id="sectionInput">
         <label>Title<input id="titleInput" maxlength="120" required></label>
         <label>Content<textarea id="contentInput" maxlength="10000" required></textarea></label>
+        <label class="image-upload-label" for="postImageInput">Add an image (optional)
+          <input id="postImageInput" type="file" accept="image/jpeg,image/png,image/webp">
+        </label>
+        <p class="notice">JPG, PNG, or WebP. Maximum file size: 5 MB. Images are checked along with your post.</p>
+        <div id="postImagePreview" class="post-image-preview hidden" aria-live="polite"></div>
         <p class="notice">Posts are checked by automated moderation. Unflagged posts publish immediately; flagged posts wait for staff review.</p>
         <button class="primary" type="submit" id="submitPost">Submit for review</button>
       </form>
