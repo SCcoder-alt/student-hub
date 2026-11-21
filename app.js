@@ -289,7 +289,7 @@ async function loadPosts(section) {
   feed.textContent = "Loading posts...";
   const { data, error } = await supabase
     .from("posts")
-    .select("id,author_id,title,content,author_name,created_at,is_pinned,status")
+    .select("id,author_id,title,content,author_name,created_at,is_pinned,status,image_path")
     .eq("section", section)
     .eq("status", "published")
     .order("is_pinned", { ascending: false })
@@ -312,12 +312,17 @@ async function loadPosts(section) {
   likes.forEach(row => { likeCounts[row.post_id] = (likeCounts[row.post_id] || 0) + 1; if (row.user_id === currentUser?.id) likedByMe.add(row.post_id); });
   comments.forEach(row => { commentCounts[row.post_id] = (commentCounts[row.post_id] || 0) + 1; });
 
-  feed.innerHTML = data.map(post => `
+  feed.innerHTML = data.map(post => {
+    const imageMarkup = post.image_path
+      ? `<img class="post-image" src="${escapeHTML(supabase.storage.from("post_images").getPublicUrl(post.image_path).data.publicUrl)}" alt="Image attached to post" loading="lazy">`
+      : "";
+    return `
     <article class="post" data-post-card="${post.id}">
       ${post.is_pinned ? '<div class="pinned-label">📌 Pinned</div>' : ""}
       <div class="meta"><button class="profile-link" data-profile-id="${post.author_id}">${escapeHTML(post.author_name || "Student")}</button> • ${new Date(post.created_at).toLocaleDateString()}</div>
       <h3>${escapeHTML(post.title)}</h3>
       <p>${escapeHTML(post.content)}</p>
+      ${imageMarkup}
       <div class="social-actions">
         <button class="small-button ${likedByMe.has(post.id) ? "liked" : ""}" data-like-post="${post.id}" ${currentUser ? "" : 'disabled title="Sign in to like posts"'}>${likedByMe.has(post.id) ? "♥ Liked" : "♡ Like"} (${likeCounts[post.id] || 0})</button>
         <button class="small-button" data-open-comments="${post.id}">Comments (${commentCounts[post.id] || 0})</button>
@@ -326,7 +331,7 @@ async function loadPosts(section) {
       ${postActionButtons(post)}
       <button class="ghost report" data-id="${post.id}">Report</button>
     </article>
-  `).join("");
+  `; }).join("");
 }
 
 async function reportPost(postId) {
@@ -358,15 +363,87 @@ document.querySelectorAll(".new-post").forEach((button) => {
 
 $("#closeModal").onclick = () => $("#postModal").classList.add("hidden");
 
+const postImageInput = $("#postImageInput");
+const postImagePreview = $("#postImagePreview");
+let postImagePreviewUrl = null;
+
+function clearPostImagePreview() {
+  if (postImagePreviewUrl) URL.revokeObjectURL(postImagePreviewUrl);
+  postImagePreviewUrl = null;
+  if (postImagePreview) {
+    postImagePreview.innerHTML = "";
+    postImagePreview.classList.add("hidden");
+  }
+}
+
+if (postImageInput) {
+  postImageInput.addEventListener("change", () => {
+    clearPostImagePreview();
+    const file = postImageInput.files?.[0];
+    if (!file) return;
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      postImageInput.value = "";
+      return toast("Choose a JPG, PNG, or WebP image.");
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      postImageInput.value = "";
+      return toast("Images must be 5 MB or smaller.");
+    }
+    postImagePreviewUrl = URL.createObjectURL(file);
+    postImagePreview.innerHTML = `
+      <img src="${postImagePreviewUrl}" alt="Selected image preview">
+      <button type="button" class="small-button" id="removePostImage">Remove image</button>
+    `;
+    postImagePreview.classList.remove("hidden");
+    $("#removePostImage").onclick = () => {
+      postImageInput.value = "";
+      clearPostImagePreview();
+    };
+  });
+}
+
 $("#postForm").onsubmit = async (event) => {
   event.preventDefault();
   if (!await getUser()) return openAuth("login");
 
   $("#submitPost").disabled = true;
+  const selectedImage = postImageInput?.files?.[0] || null;
+  let imagePath = null;
+
+  if (selectedImage) {
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(selectedImage.type) || selectedImage.size > 5 * 1024 * 1024) {
+      $("#submitPost").disabled = false;
+      return toast("Choose a JPG, PNG, or WebP image that is 5 MB or smaller.");
+    }
+
+    const extensionByType = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp"
+    };
+    imagePath = `${currentUser.id}/${crypto.randomUUID()}.${extensionByType[selectedImage.type]}`;
+    const { error: uploadError } = await supabase.storage
+      .from("post_images")
+      .upload(imagePath, selectedImage, {
+        cacheControl: "3600",
+        contentType: selectedImage.type,
+        upsert: false
+      });
+
+    if (uploadError) {
+      $("#submitPost").disabled = false;
+      console.error("Post image upload failed:", uploadError);
+      return toast("Image upload failed. Your post was not submitted.");
+    }
+  }
+
   const payload = {
     section: $("#sectionInput").value,
     title: $("#titleInput").value.trim(),
-    content: $("#contentInput").value.trim()
+    content: $("#contentInput").value.trim(),
+    image_path: imagePath
   };
   const { data, error } = await supabase.functions.invoke("supabase-functions-deploy-moderate-post", { body: payload });
   $("#submitPost").disabled = false;
@@ -375,6 +452,7 @@ $("#postForm").onsubmit = async (event) => {
   if (!data?.allowed) return toast(data?.message || "Post was not approved.");
 
   $("#postForm").reset();
+  clearPostImagePreview();
   $("#postModal").classList.add("hidden");
   if (data.status === "pending_review") {
     toast("Your post was sent to the moderator review queue.");
