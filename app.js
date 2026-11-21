@@ -700,7 +700,7 @@ async function loadPendingReview() {
   host.textContent = "Loading posts awaiting review...";
   const { data, error } = await supabase
     .from("posts")
-    .select("id,title,content,author_name,section,created_at,moderation,status")
+    .select("id,title,content,author_name,section,created_at,moderation,status,image_path")
     .eq("status", "pending_review")
     .order("created_at", { ascending: true })
     .limit(100);
@@ -746,11 +746,15 @@ async function loadPendingReview() {
       `;
     }
 
+    const reviewImage = post.image_path
+      ? `<img class="post-image" src="${escapeHTML(supabase.storage.from("post_images").getPublicUrl(post.image_path).data.publicUrl)}" alt="Image attached to post awaiting review" loading="lazy">`
+      : "";
     return `
       <article class="admin-item">
         <div class="meta">${escapeHTML(post.author_name || "Student")} • ${escapeHTML(post.section)} • ${new Date(post.created_at).toLocaleString()}</div>
         <h3>${escapeHTML(post.title)}</h3>
         <p>${escapeHTML(post.content)}</p>
+        ${reviewImage}
         <p class="muted">AI flag categories: ${categoryText}</p>
         <div class="post-actions">
           <button class="small-button" data-review-action="approve" data-id="${post.id}">Approve and publish</button>
