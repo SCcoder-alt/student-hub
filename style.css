@@ -29,7 +29,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .small-button{padding:8px 11px;background:#e8eeff;color:#274bc4;font-size:.82rem}
 .small-button.danger{background:#ffe8e8;color:#a32121}
 .modal{position:fixed;inset:0;background:#0008;display:grid;place-items:center;padding:20px;z-index:10}
-.modal-box{width:min(650px,100%);background:white;border-radius:22px;padding:28px;position:relative}
+.modal-box{width:min(650px,100%);max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);overflow-y:auto;overscroll-behavior:contain;background:white;border-radius:22px;padding:28px;position:relative}
 .close{position:absolute;right:18px;top:14px;border:0;background:transparent;font-size:2rem;cursor:pointer}
 label{display:block;font-weight:700;margin:14px 0}
 input,textarea{width:100%;padding:12px;border:1px solid #ccd5e3;border-radius:10px;font:inherit;margin-top:7px}
