@@ -1,104 +1,118 @@
 # Student Hub
 
-A student community website with:
+Student Hub is a student community website with two main spaces:
 
-- Microsoft account sign-in
-- Microsoft account name used as the display name
-- Education and Relaxation sections
-- Persistent posts in Supabase
-- Server-side moderation gate before publishing
-- Reporting system
-- Security rule: browsers cannot directly insert posts into the database
+- **Education** — school projects, learning, and ideas.
+- **Relaxation** — school-friendly conversations and shared interests.
 
-## IMPORTANT REALITY CHECK
+The site uses **Supabase email/password authentication**. Students choose a display name when they create an account.
 
-Hosting the website can be free, but AI moderation is not automatically unlimited and free forever. This project intentionally uses a `MODERATION_WEBHOOK_URL` adapter so you can connect a moderation provider without exposing its secret key in the browser.
+## Current features
 
-The moderation function **fails closed**: if moderation is unavailable, the post is NOT published.
+- Email/password sign-up and sign-in
+- Student profiles with display names, short bios, and optional profile pictures
+- Education and Relaxation post feeds
+- Optional image attachments on posts (JPG, PNG, or WebP; maximum 5 MB)
+- Server-side moderation before a post is published
+- Staff review queue for posts that need a human decision
+- Post likes, comments, and reports
+- Notifications
+- Private one-to-one and group messaging with request/accept flows
+- Blocking and reporting for private messages
+- Community points and leaderboard
+- Staff roles and moderation tools for posts and members
 
-AI should not be treated as perfect. For a student community, keep a human admin/review path and clear community rules.
+## Project structure
 
-## 1. Create a Supabase project
+- `index.html` — page structure and interface
+- `style.css` — layout and visual styling
+- `app.js` — Supabase client, authentication, feeds, and interactive features
+- `supabase/functions/moderate-post/index.ts` — server-side post moderation function
+- `supabase/` — database setup and related Supabase project files
 
-Create a project, then run `supabase/schema.sql` in the SQL editor.
+## Supabase configuration
 
-Copy your:
-- Project URL
-- anon/public key
-
-Paste them into `app.js`:
+The browser app is configured in `app.js`:
 
 ```js
-const SUPABASE_URL = "PASTE_YOUR_SUPABASE_URL";
-const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY";
+const SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_PUBLISHABLE_OR_ANON_KEY";
 ```
 
-## 2. Microsoft sign-in
+Only the publishable/anon key belongs in browser code. **Never put a Supabase service-role key or an OpenAI secret key in `app.js`, HTML, CSS, or any other public GitHub Pages file.**
 
-In Supabase Authentication, configure the Azure/Microsoft provider.
+Configure Supabase Authentication for email/password sign-in. The sign-up flow stores the student's chosen display name in user metadata.
 
-You must also create/configure the Microsoft application registration and use the redirect URL Supabase gives you.
+## Post image storage
 
-After Microsoft sign-in works, test that the returned account metadata contains the student's name. The website uses `full_name`, then `name`, as the display name.
+Create a Supabase Storage bucket named exactly:
 
-### Privacy improvement recommended
-
-If this is for one school, restrict sign-in to that school's Microsoft organization rather than allowing every Microsoft account.
-
-## 3. Deploy the moderation function
-
-Deploy:
-
-```bash
-supabase functions deploy moderate-post
+```
+post_images
 ```
 
-Set secrets server-side:
+The current frontend expects the bucket to:
 
-```bash
-supabase secrets set MODERATION_WEBHOOK_URL="https://YOUR-MODERATION-SERVER"
-supabase secrets set MODERATION_WEBHOOK_TOKEN="YOUR_SECRET"
+- Be public so published post images can be displayed with public URLs.
+- Allow JPEG, PNG, and WebP images.
+- Enforce a 5 MB file-size limit.
+
+The upload policy should allow authenticated users to upload only into a folder named with their own authenticated user ID. The intended object path is:
+
+```
+USER_ID/IMAGE_UUID.jpg
 ```
 
-The moderation endpoint should accept:
+Use the authenticated user's ID in place of `USER_ID`. Do not create a broad authenticated upload policy that lets users write into other users' folders.
 
-```json
-{ "title": "...", "content": "...", "section": "education" }
-```
+The `posts` table needs an `image_path` text column that can be null. The browser stores the Storage object path in that column; it does not store the image bytes in the database.
 
-And return:
+## Post moderation function
 
-```json
-{ "allowed": true, "reason": "...", "labels": ["school-friendly"] }
-```
+Post submissions are sent to a Supabase Edge Function. The function must validate the signed-in user, check applicable account restrictions, moderate the post text and optional image on the server, and only then insert the post.
 
-## 4. Continuous monitoring
+The function's deployed name must match the function name used by `supabase.functions.invoke(...)` in `app.js`. The source folder name and deployed function name should be kept consistent when deploying.
 
-No AI system can honestly guarantee it catches everything immediately. A stronger production design is:
+Required server-side secrets depend on the current function implementation. For the current moderation implementation, configure these in Supabase Edge Function secrets:
 
-1. Check every new post and edit before publishing.
-2. Recheck reported posts immediately.
-3. Run a scheduled server-side scan of existing published posts.
-4. Automatically hide clear violations.
-5. Send uncertain cases to an adult/admin reviewer.
-6. Keep audit logs.
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY`
 
-Do not rely on client-side moderation; users can bypass browser JavaScript.
+Keep all secret values in Supabase, never in the public repository. Deploying a code change to GitHub does **not** deploy the Edge Function to Supabase; deploy the function separately after changing its source.
 
-## 5. Publish the website
+The moderation flow should fail closed: if moderation is unavailable or returns an error, the post should not be published.
 
-For GitHub Pages:
+## Roles and moderation
 
-1. Create a GitHub repository.
-2. Upload `index.html`, `style.css`, and `app.js`.
-3. Enable GitHub Pages in repository settings.
+The site recognizes these staff roles:
 
-Your Supabase data is separate, so updating the website files does not erase posts or accounts.
+- **Owner**
+- **Admin**
+- **Moderator**
 
-## Before opening to students
+The browser uses role information to show the appropriate staff interface, but database permissions and security-definer RPC functions must enforce every privileged action. Hiding a button in the browser is not a security boundary.
 
-- Get permission from the school/organization if this represents a school community.
+Staff tools include reviewing flagged posts, handling reports, hiding/restoring posts, and managing member roles or account restrictions according to role permissions.
+
+## Publishing with GitHub Pages
+
+The public website is served from GitHub Pages. Changes to `index.html`, `style.css`, `app.js`, and other site files on the published branch are deployed by GitHub Pages after its build/update completes.
+
+Supabase is separate from GitHub Pages:
+
+- GitHub Pages serves the website.
+- Supabase Authentication manages accounts.
+- Supabase Database stores community data.
+- Supabase Storage stores post images.
+- Supabase Edge Functions run server-side moderation and other protected logic.
+
+## Before inviting students
+
+- Get approval from the school or organization if the site represents it.
 - Publish clear community guidelines and a privacy notice.
 - Avoid collecting unnecessary personal information.
-- Have an adult/admin moderation process.
-- Test authentication and database permissions with a non-admin account.
+- Have a responsible adult/staff moderation process.
+- Test the site with a regular student account as well as staff accounts.
+- Review Supabase Row Level Security (RLS) policies and Storage policies; never rely on frontend checks alone.
