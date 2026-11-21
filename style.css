@@ -90,3 +90,12 @@ footer{text-align:center;padding:35px;color:#71809a}
 
 /* Group chat additions */
 .group-create{max-width:720px;margin:18px 0;padding:16px;background:#f7f9fd;border:1px solid #e5eaf2;border-radius:14px}.group-create label{margin-top:0}.group-create input{max-width:520px}.group-select-label{display:flex;align-items:center;gap:8px;margin:0;font-weight:600}.group-select-label input{width:auto;margin:0}.group-chat-info{margin-bottom:12px;padding:12px;background:#f7f9fd;border-radius:12px}.group-chat-info p{margin:6px 0}.group-member-list{display:flex;flex-wrap:wrap;gap:8px;font-size:.9rem}.group-chat-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+
+
+/* Post image attachments */
+.post-image{display:block;width:100%;max-height:440px;object-fit:contain;margin:16px 0 8px;border-radius:14px;background:#eef2f8}
+.image-upload-label{display:block}
+.image-upload-label input[type=file]{display:block;padding:10px;background:#f7f9fd;cursor:pointer}
+.post-image-preview{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin:12px 0 18px;padding:12px;border:1px dashed #b9c7df;border-radius:14px;background:#f7f9fd}
+.post-image-preview img{display:block;max-width:100%;max-height:260px;object-fit:contain;border-radius:10px}
+.post-image-preview button{align-self:flex-start}
