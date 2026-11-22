@@ -56,7 +56,7 @@ begin
   end if;
 
   if v_old_role is not distinct from v_new_role then
-    return coalesce(new, old);
+    if tg_op = 'DELETE' then return old; else return new; end if;
   end if;
 
   select email into v_actor_email
@@ -80,7 +80,7 @@ begin
     (auth.uid(), v_actor_email, v_action, v_target_id, v_target_email,
      coalesce(v_old_role, 'none') || ' → ' || coalesce(v_new_role, 'none'));
 
-  return coalesce(new, old);
+  if tg_op = 'DELETE' then return old; else return new; end if;
 end;
 $$;
 
