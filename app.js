@@ -818,6 +818,63 @@ async function loadHiddenPosts() {
   `).join("");
 }
 
+async function loadOwnerAuditLog() {
+  const host = $("#ownerAuditLog");
+  if (!host) return;
+  if (currentRole !== "owner") {
+    host.textContent = "Owner access only.";
+    return;
+  }
+
+  host.textContent = "Loading administrative history...";
+  const { data, error } = await supabase
+    .from("owner_audit_log")
+    .select("id,actor_email,action,target_email,details,created_at")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    host.textContent = `Could not load audit history: ${error.message}. Apply the owner-controls SQL migration first.`;
+    return;
+  }
+  if (!data?.length) {
+    host.textContent = "No administrative changes have been recorded yet.";
+    return;
+  }
+
+  host.innerHTML = data.map(entry => `
+    <article class="admin-item audit-entry">
+      <div class="meta">${new Date(entry.created_at).toLocaleString()}</div>
+      <strong>${escapeHTML(entry.action || "Administrative change")}</strong>
+      <p>${escapeHTML(entry.actor_email || "Unknown staff member")} ${entry.target_email ? `→ ${escapeHTML(entry.target_email)}` : ""}</p>
+      ${entry.details ? `<p class="muted">${escapeHTML(entry.details)}</p>` : ""}
+    </article>
+  `).join("");
+}
+
+const ownerTransferForm = $("#ownerTransferForm");
+if (ownerTransferForm) {
+  ownerTransferForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (currentRole !== "owner") return toast("Only the Owner can transfer ownership.");
+    const email = $("#newOwnerEmail").value.trim();
+    if (!email) return;
+    if (!confirm(`Transfer Student Hub ownership to ${email}? Your account will become an Admin. This cannot be undone from this form.`)) return;
+
+    const button = ownerTransferForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    const { error } = await supabase.rpc("owner_transfer_ownership", {
+      _new_owner_email: email
+    });
+    button.disabled = false;
+    if (error) return toast(`Ownership transfer failed: ${error.message}`);
+
+    toast("Ownership transferred. Sign in again to refresh your permissions.");
+    await refreshIdentity();
+    await loadAdminDashboard();
+  });
+}
+
 async function loadAdminDashboard() {
   if (!isStaff()) {
     $("#adminPanel").classList.add("hidden");
@@ -826,8 +883,9 @@ async function loadAdminDashboard() {
   $("#adminPanel").classList.remove("hidden");
   $("#adminRoleLabel").textContent = `Signed in with ${currentRole} permissions`;
   $("#membersCard").classList.toggle("hidden", !canManageMembers());
+  $("#ownerControlsCard")?.classList.toggle("hidden", currentRole !== "owner");
   $("#createReviewTestPost").classList.toggle("hidden", !canManagePosts());
-  await Promise.all([loadPendingReview(), loadPendingComments(), loadDmReports(), loadReports(), loadHiddenPosts(), loadMembers()]);
+  await Promise.all([loadPendingReview(), loadPendingComments(), loadDmReports(), loadReports(), loadHiddenPosts(), loadMembers(), currentRole === "owner" ? loadOwnerAuditLog() : Promise.resolve()]);
 }
 
 $("#createReviewTestPost").onclick = async () => {
@@ -847,6 +905,7 @@ $("#createReviewTestPost").onclick = async () => {
 $("#adminBtn").onclick = loadAdminDashboard;
 $("#closeAdmin").onclick = () => $("#adminPanel").classList.add("hidden");
 $("#refreshAdmin").onclick = loadAdminDashboard;
+$("#refreshOwnerAudit")?.addEventListener("click", loadOwnerAuditLog);
 
 document.addEventListener("click", async (event) => {
   const reviewButton = event.target.closest("[data-review-action]");
