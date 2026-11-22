@@ -119,6 +119,24 @@
           <div id="membersList" class="admin-list">Loading members...</div>
         </section>
 
+        <section class="admin-card owner-controls-card hidden" id="ownerControlsCard">
+          <h3>👑 Owner controls</h3>
+          <p class="muted">Transfer platform ownership. The current Owner becomes an Admin, and the new Owner receives the highest role.</p>
+          <form id="ownerTransferForm" class="owner-transfer-form">
+            <label for="newOwnerEmail">New Owner account email
+              <input id="newOwnerEmail" type="email" maxlength="254" autocomplete="off" required placeholder="student@example.com">
+            </label>
+            <p class="notice">Only transfer ownership to an account you trust. The account must already exist in Student Hub.</p>
+            <button class="small-button danger" type="submit">Transfer ownership</button>
+          </form>
+          <div class="owner-audit-heading">
+            <h3>Administrative audit log</h3>
+            <button id="refreshOwnerAudit" class="small-button" type="button">Refresh log</button>
+          </div>
+          <p class="muted">Recent staff-role changes and ownership transfers.</p>
+          <div id="ownerAuditLog" class="admin-list">Apply the owner-controls SQL migration to enable the audit log.</div>
+        </section>
+
         <section class="admin-card">
           <h3>🔒 Reported private messages</h3>
           <p class="muted">Only messages students report are shown to staff here.</p>
