@@ -223,3 +223,55 @@ grant execute on function public.place_battleship_fleet(uuid,jsonb) to authentic
 grant execute on function public.attack_battleship(uuid,integer) to authenticated;
 grant execute on function public.list_battleship_games(uuid) to authenticated;
 grant execute on function public.get_battleship_state(uuid) to authenticated;
+
+-- Include hit/miss information without ever returning the opponent's fleet.
+create or replace function public.get_battleship_state(_game_id uuid)
+returns jsonb
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_game public.battleship_games%rowtype;
+  v_user uuid:=auth.uid();
+  v_own_fleet jsonb;
+  v_enemy_fleet jsonb;
+  v_outgoing integer[];
+  v_incoming integer[];
+  v_enemy_cells integer[] := '{}'::integer[];
+  v_own_cells integer[] := '{}'::integer[];
+  v_hits_out integer[] := '{}'::integer[];
+  v_hits_in integer[] := '{}'::integer[];
+  v_ship jsonb;
+begin
+  if v_user is null then raise exception 'Sign in to view this game.'; end if;
+  select * into v_game from public.battleship_games where id=_game_id;
+  if not found or not public.is_dm_member(v_game.conversation_id) then raise exception 'Game not found.'; end if;
+  if v_user not in (v_game.player_one,v_game.player_two) then raise exception 'You are not a player in this game.'; end if;
+  if v_user=v_game.player_one then
+    v_own_fleet:=v_game.fleet_one; v_enemy_fleet:=v_game.fleet_two;
+    v_outgoing:=v_game.shots_one; v_incoming:=v_game.shots_two;
+  else
+    v_own_fleet:=v_game.fleet_two; v_enemy_fleet:=v_game.fleet_one;
+    v_outgoing:=v_game.shots_two; v_incoming:=v_game.shots_one;
+  end if;
+  if v_enemy_fleet is not null then
+    for v_ship in select value from jsonb_array_elements(v_enemy_fleet) loop
+      select v_enemy_cells || coalesce(array_agg(value::integer),'{}'::integer[]) into v_enemy_cells
+      from jsonb_array_elements_text(v_ship->'cells');
+    end loop;
+  end if;
+  if v_own_fleet is not null then
+    for v_ship in select value from jsonb_array_elements(v_own_fleet) loop
+      select v_own_cells || coalesce(array_agg(value::integer),'{}'::integer[]) into v_own_cells
+      from jsonb_array_elements_text(v_ship->'cells');
+    end loop;
+  end if;
+  select coalesce(array_agg(c),'{}'::integer[]) into v_hits_out from unnest(v_outgoing) c where c=any(v_enemy_cells);
+  select coalesce(array_agg(c),'{}'::integer[]) into v_hits_in from unnest(v_incoming) c where c=any(v_own_cells);
+  return jsonb_build_object(
+    'id',v_game.id,'player_one',v_game.player_one,'player_two',v_game.player_two,
+    'status',v_game.status,'current_turn',v_game.current_turn,'winner',v_game.winner,
+    'own_fleet',v_own_fleet,'shots_fired',v_outgoing,'shots_received',v_incoming,
+    'hits_made',v_hits_out,'hits_received',v_hits_in
+  );
+end;
+$$;
