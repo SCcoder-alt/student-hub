@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#14213d">
+  <title>Kart Racing | Student Hub Arcade</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:Inter,system-ui,Arial,sans-serif;background:#101827;color:#fff}
+    #game{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}
+    .top{position:fixed;z-index:3;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;pointer-events:none}
+    .brand,.hud,.actions{pointer-events:auto}.brand{padding:10px 14px;background:#101827d9;border:1px solid #ffffff24;border-radius:13px;text-decoration:none;color:#fff;font-weight:850}
+    .hud{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}.stat{min-width:86px;padding:9px 12px;text-align:center;background:#101827df;border:1px solid #ffffff24;border-radius:12px}.stat small{display:block;color:#aab8ce;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em}.stat strong{font-size:1.05rem;font-variant-numeric:tabular-nums}
+    .actions{display:flex;gap:8px}.btn{border:0;border-radius:11px;padding:10px 14px;background:#e8efff;color:#19376f;font-weight:800;cursor:pointer}.btn.primary{background:#4d7cff;color:white}.btn:disabled{opacity:.5;cursor:not-allowed}
+    .panel{position:fixed;z-index:5;inset:0;display:grid;place-items:center;padding:18px;background:linear-gradient(135deg,#08111ddd,#122443bb)}.dialog{width:min(520px,100%);max-height:90vh;overflow:auto;padding:26px;background:#fff;color:#172033;border-radius:22px;box-shadow:0 24px 90px #0008}.dialog h1{margin:4px 0 8px;font-size:2rem}.dialog p{color:#58677e;line-height:1.5}.eyebrow{font-size:.72rem;font-weight:900;letter-spacing:.14em;color:#4268d9}.row{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}.row>*{flex:1}.field{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font:inherit}.note{font-size:.82rem;color:#64748b}.hidden{display:none!important}
+    #message{position:fixed;z-index:4;bottom:18px;left:50%;transform:translateX(-50%);padding:10px 15px;background:#101827df;border:1px solid #ffffff26;border-radius:12px;color:#fff;text-align:center;max-width:90vw}
+    #countdown{position:fixed;z-index:4;inset:0;display:grid;place-items:center;font-size:clamp(5rem,18vw,11rem);font-weight:1000;text-shadow:0 8px 35px #0009;pointer-events:none}
+    .controls{position:fixed;z-index:3;bottom:18px;left:18px;right:18px;display:none;justify-content:space-between;pointer-events:none}.control-group{display:flex;gap:10px}.touch{width:62px;height:62px;border:1px solid #ffffff55;border-radius:18px;background:#101827b8;color:white;font-size:1.35rem;font-weight:900;pointer-events:auto;touch-action:none}
+    @media(max-width:720px){.top{flex-wrap:wrap}.brand{font-size:.85rem}.hud{order:3;width:100%}.stat{flex:1;min-width:0;padding:7px}.actions .btn{padding:9px;font-size:.8rem}.controls{display:flex}.dialog{padding:21px}}
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <div class="top">
+    <a class="brand" href="index.html#arcade">← Student Hub Arcade</a>
+    <div class="hud">
+      <div class="stat"><small>Lap</small><strong id="lap">0 / 3</strong></div>
+      <div class="stat"><small>Speed</small><strong id="speed">0 km/h</strong></div>
+      <div class="stat"><small>Time</small><strong id="time">00:00.0</strong></div>
+      <div class="stat"><small>Racers</small><strong id="racers">1</strong></div>
+    </div>
+    <div class="actions"><button class="btn" id="pauseBtn">Pause</button><button class="btn" id="exitBtn">Exit</button></div>
+  </div>
+  <div id="countdown" class="hidden"></div>
+  <div class="controls">
+    <div class="control-group"><button class="touch" data-key="ArrowLeft">◀</button><button class="touch" data-key="ArrowRight">▶</button></div>
+    <div class="control-group"><button class="touch" data-key="ArrowDown">▼</button><button class="touch" data-key="ArrowUp">▲</button></div>
+  </div>
+  <div id="message">WASD / arrow keys to drive · Space to drift</div>
+
+  <section class="panel" id="menu">
+    <div class="dialog">
+      <p class="eyebrow">STUDENT HUB ARCADE · 3D</p>
+      <h1>🏁 Kart Racing</h1>
+      <p>Race around the island circuit, complete three laps, and try to beat your best time.</p>
+      <div class="row"><button class="btn primary" id="soloBtn">Play solo</button></div>
+      <hr>
+      <h3>Race with friends</h3>
+      <p class="note">Create a room and share its code, or enter a friend's code. Multiplayer requires you to be signed in to Student Hub.</p>
+      <div class="row"><button class="btn primary" id="createRoomBtn">Create room</button><input class="field" id="roomInput" maxlength="6" placeholder="ROOM CODE" aria-label="Room code"></div>
+      <div class="row"><button class="btn" id="joinRoomBtn">Join room</button></div>
+      <p class="note" id="roomStatus" aria-live="polite"></p>
+      <p class="note">Controls: W / ↑ accelerate · S / ↓ brake · A / ← and D / → steer · Space drift.</p>
+    </div>
+  </section>
+  <section class="panel hidden" id="lobby">
+    <div class="dialog">
+      <p class="eyebrow">MULTIPLAYER ROOM</p>
+      <h1>Room <span id="roomLabel"></span></h1>
+      <p>Share this code with friends so they can join your race.</p>
+      <div class="row"><button class="btn" id="copyCodeBtn">Copy room code</button><button class="btn" id="leaveRoomBtn">Leave room</button></div>
+      <h3>Racers in room</h3>
+      <div id="playerList"></div>
+      <p class="note" id="lobbyStatus">Waiting for racers…</p>
+      <div class="row"><button class="btn primary" id="startRaceBtn">Start race</button></div>
+    </div>
+  </section>
+  <section class="panel hidden" id="finish">
+    <div class="dialog">
+      <p class="eyebrow">RACE COMPLETE</p><h1>🏆 Finished!</h1>
+      <p id="finishTime"></p>
+      <div class="row"><button class="btn primary" id="againBtn">Race again</button><button class="btn" id="finishExitBtn">Back to arcade</button></div>
+    </div>
+  </section>
+  <section class="panel hidden" id="pausePanel">
+    <div class="dialog"><p class="eyebrow">RACE PAUSED</p><h1>Take a breather.</h1><div class="row"><button class="btn primary" id="resumeBtn">Resume</button><button class="btn" id="pauseExitBtn">Exit race</button></div></div>
+  </section>
+<script type="module">
+import * as THREE from "https://esm.sh/three@0.170.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = "https://hftxvwrhinrqnuqdxzcs.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_-JzmuC2v2YDdeZaeNS4OjQ_BGiKMNLl";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = id => document.getElementById(id);
+let currentUser = null;
+let playerName = "Guest Racer";
+let channel = null;
+let roomCode = "";
+let isRoomHost = false;
+let raceRunning = false;
+let paused = false;
+let raceStartAt = 0;
+let raceStartedAt = 0;
+let elapsed = 0;
+let lap = 0;
+let previousTrackT = 0;
+let finished = false;
+let lastBroadcast = 0;
+const keys = new Set();
+const remotePlayers = new Map();
+const maxLaps = 3;
+const trackSamples = 360;
+const roadHalfWidth = 8;
+const trackPoints = [];
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x91d7f2);
+scene.fog = new THREE.Fog(0x91d7f2, 100, 230);
+const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.8));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+$("game").appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xdff5ff,0x66804b,2.0));
+const sun = new THREE.DirectionalLight(0xffffff,2.2);
+sun.position.set(-45,85,35);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);scene.add(sun);
+
+const mat = (color, roughness=.85) => new THREE.MeshStandardMaterial({color,roughness});
+const grassMat=mat(0x4d9b55), roadMat=mat(0x343b49), curbMat=mat(0xf3f3f3), redMat=mat(0xe34c48), whiteMat=mat(0xffffff), treeMat=mat(0x247044), trunkMat=mat(0x805334);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(360,360),grassMat);ground.rotation.x=-Math.PI/2;ground.position.y=-.12;ground.receiveShadow=true;scene.add(ground);
+
+function centerAt(t){return new THREE.Vector3(48*Math.cos(t),0,31*Math.sin(t));}
+function tangentAt(t){return new THREE.Vector3(-48*Math.sin(t),0,31*Math.cos(t)).normalize();}
+function sideAt(t){const d=tangentAt(t);return new THREE.Vector3(d.z,0,-d.x).normalize();}
+for(let i=0;i<trackSamples;i++)trackPoints.push(centerAt(i/trackSamples*Math.PI*2));
+const roadVertices=[],roadIndices=[];
+for(let i=0;i<=trackSamples;i++){
+  const t=i/trackSamples*Math.PI*2,p=centerAt(t),s=sideAt(t);
+  roadVertices.push(p.x+s.x*roadHalfWidth,.02,p.z+s.z*roadHalfWidth,p.x-s.x*roadHalfWidth,.02,p.z-s.z*roadHalfWidth);
+  if(i<trackSamples){const a=i*2,b=a+1,c=a+2,d=a+3;roadIndices.push(a,b,c,b,d,c);}
+}
+const roadGeo=new THREE.BufferGeometry();roadGeo.setAttribute("position",new THREE.Float32BufferAttribute(roadVertices,3));roadGeo.setIndex(roadIndices);roadGeo.computeVertexNormals();
+const road=new THREE.Mesh(roadGeo,roadMat);road.receiveShadow=true;scene.add(road);
+function makeRail(sign,color){
+  const pts=[];for(let i=0;i<=trackSamples;i++){const t=i/trackSamples*Math.PI*2,p=centerAt(t),s=sideAt(t);pts.push(new THREE.Vector3(p.x+s.x*(roadHalfWidth+.55)*sign, .65,p.z+s.z*(roadHalfWidth+.55)*sign));}
+  const curve=new THREE.CatmullRomCurve3(pts,true);const rail=new THREE.Mesh(new THREE.TubeGeometry(curve,trackSamples,0.42,8,true),mat(color));rail.castShadow=true;scene.add(rail);
+}
+makeRail(1,0xf4f5f7);makeRail(-1,0xf4f5f7);
+for(let i=0;i<trackSamples;i+=12){
+  const t=i/trackSamples*Math.PI*2,p=centerAt(t),s=sideAt(t);
+  const marker=new THREE.Mesh(new THREE.BoxGeometry(.22,.04,2.1),whiteMat);marker.position.set(p.x,.08,p.z);marker.rotation.y=Math.atan2(tangentAt(t).x,tangentAt(t).z);scene.add(marker);
+  for(const sign of [-1,1]){
+    const curb=new THREE.Mesh(new THREE.BoxGeometry(2.1,.14,.9),i%24===0?redMat:whiteMat);
+    curb.position.set(p.x+s.x*roadHalfWidth*.91,.12,p.z+s.z*roadHalfWidth*.91);curb.rotation.y=Math.atan2(tangentAt(t).x,tangentAt(t).z);scene.add(curb);
+  }
+}
+const startT=0;
+for(let i=0;i<10;i++){
+  const t=i/10*.32*Math.PI/2,p=centerAt(t),s=sideAt(t);
+  const tree=new THREE.Group();
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.35,.5,2.4,7),trunkMat);trunk.position.y=1.2;trunk.castShadow=true;tree.add(trunk);
+  const crown=new THREE.Mesh(new THREE.ConeGeometry(2.2,5,7),treeMat);crown.position.y=4; crown.castShadow=true;tree.add(crown);
+  tree.position.set(p.x+s.x*17,0,p.z+s.z*17);scene.add(tree);
+}
+for(let i=0;i<36;i++){
+  const t=i/36*Math.PI*2,p=centerAt(t),s=sideAt(t),sign=i%2?1:-1;
+  const group=new THREE.Group();
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.28,.4,2,7),trunkMat);trunk.position.y=1;group.add(trunk);
+  const crown=new THREE.Mesh(new THREE.ConeGeometry(1.7,4,7),treeMat);crown.position.y=3.6;group.add(crown);
+  group.position.set(p.x+s.x*(19+Math.random()*14)*sign,0,p.z+s.z*(19+Math.random()*14)*sign);scene.add(group);
+}
+const water=new THREE.Mesh(new THREE.PlaneGeometry(600,600),mat(0x3c9bc4));water.rotation.x=-Math.PI/2;water.position.y=-.35;scene.add(water);
+const island=new THREE.Mesh(new THREE.CylinderGeometry(105,110,2,64),grassMat);island.position.y=-.7;scene.add(island);
+
+function makeKart(color=0x3478f6,name="You"){
+  const root=new THREE.Group();const bodyMat=mat(color,.45),dark=mat(0x18202c,.6),glass=mat(0x9bd9f3,.25);
+  const body=new THREE.Mesh(new THREE.BoxGeometry(2.5,.65,3.7),bodyMat);body.position.y=.85;body.castShadow=true;root.add(body);
+  const nose=new THREE.Mesh(new THREE.BoxGeometry(1.7,.28,1.0),bodyMat);nose.position.set(0,1.12,1.25);root.add(nose);
+  const seat=new THREE.Mesh(new THREE.BoxGeometry(1.25,.95,1.1),dark);seat.position.set(0,1.45,-.35);root.add(seat);
+  const windshield=new THREE.Mesh(new THREE.BoxGeometry(1.45,.55,.16),glass);windshield.position.set(0,1.65,.25);windshield.rotation.x=-.2;root.add(windshield);
+  for(const x of [-1.3,1.3])for(const z of [-1.15,1.15]){
+    const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.48,.48,.38,14),dark);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.48,z);wheel.castShadow=true;root.add(wheel);
+  }
+  const driverHead=new THREE.Mesh(new THREE.SphereGeometry(.42,14,12),mat(0xffc99e));driverHead.position.set(0,2.05,-.45);root.add(driverHead);
+  const helmet=new THREE.Mesh(new THREE.SphereGeometry(.49,14,12,0,Math.PI*2,0,Math.PI*.55),mat(0xffd34f));helmet.position.set(0,2.12,-.48);root.add(helmet);
+  root.userData.playerName=name;scene.add(root);return root;
+}
+const kart=makeKart(0x3478f6,playerName);
+kart.position.set(48,0,0);
+let heading=0,speed=0,steer=0;
+const remoteColors=[0xf04e4e,0x9b59d0,0xff9f43,0x1abc9c,0xe84393];
+function closestTrackT(pos){
+  let best=Infinity,bestT=0;
+  for(let i=0;i<trackSamples;i++){const p=trackPoints[i],d=pos.distanceToSquared(p);if(d<best){best=d;bestT=i/trackSamples;}}
+  return {t:bestT,distance:Math.sqrt(best)};
+}
+function createRemote(id,name){
+  const obj=makeKart(remoteColors[remotePlayers.size%remoteColors.length],name||"Racer");
+  obj.scale.setScalar(.94);remotePlayers.set(id,{obj,target:new THREE.Vector3(48,0,0),heading:0,name:name||"Racer",lap:0});
+  return remotePlayers.get(id);
+}
+function removeRemote(id){const p=remotePlayers.get(id);if(p){scene.remove(p.obj);p.obj.traverse(o=>{if(o.geometry)o.geometry.dispose();});remotePlayers.delete(id);}}
+function updateRacerCount(){$("racers").textContent=String(1+remotePlayers.size);}
+function formatTime(ms){const total=ms/1000,m=Math.floor(total/60),s=(total%60).toFixed(1).padStart(4,"0");return String(m).padStart(2,"0")+":"+s;}
+function showMessage(text){$("message").textContent=text;}
+function setPanel(id){for(const p of ["menu","lobby","finish","pausePanel"])$(p).classList.toggle("hidden",p!==id);}
+async function getIdentity(){
+  const {data}=await supabase.auth.getUser();currentUser=data?.user||null;
+  if(currentUser)playerName=(currentUser.user_metadata?.display_name||currentUser.email?.split("@")[0]||"Student").slice(0,22);
+}
+function randomCode(){const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="";for(let i=0;i<6;i++)s+=chars[Math.floor(Math.random()*chars.length)];return s;}
+async function connectRoom(code,host){
+  if(!currentUser){$("roomStatus").textContent="Sign in to Student Hub first, then return to join multiplayer.";return false;}
+  if(channel)await supabase.removeChannel(channel);
+  roomCode=code.toUpperCase();isRoomHost=host;
+  channel=supabase.channel("kart-room-"+roomCode,{config:{presence:{key:currentUser.id},broadcast:{self:false}}});
+  channel.on("presence",{event:"sync"},()=>{
+    const state=channel.presenceState(),ids=Object.keys(state);
+    for(const id of ids){if(id===currentUser.id)continue;const meta=state[id]?.[0]||{};if(!remotePlayers.has(id))createRemote(id,meta.name||"Racer");}
+    for(const id of [...remotePlayers.keys()])if(!ids.includes(id))removeRemote(id);
+    updateRacerCount();renderPlayers();
+  });
+  channel.on("broadcast",{event:"kart-state"},({payload})=>{
+    if(!payload||payload.id===currentUser.id)return;
+    const remote=remotePlayers.get(payload.id)||createRemote(payload.id,payload.name);
+    remote.target.set(payload.x,0,payload.z);remote.heading=payload.heading;remote.lap=payload.lap||0;
+  });
+  channel.on("broadcast",{event:"race-start"},({payload})=>{
+    if(payload?.startAt)beginRace(payload.startAt);
+  });
+  await new Promise(resolve=>{
+    channel.subscribe(async status=>{
+      if(status==="SUBSCRIBED"){
+        await channel.track({name:playerName,joinedAt:Date.now()});
+        resolve(true);
+      }else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"){resolve(false);}
+    });
+  }).then(ok=>{
+    if(!ok){$("roomStatus").textContent="Could not connect to that room. Try again.";channel=null;return;}
+    $("roomLabel").textContent=roomCode;$("roomInput").value=roomCode;
+    $("lobbyStatus").textContent=isRoomHost?"You're the host. Start when everyone is ready.":"Connected! Waiting for the host to start.";
+    $("startRaceBtn").classList.toggle("hidden",!isRoomHost);
+    $("startRaceBtn").disabled=false;
+    setPanel("lobby");renderPlayers();updateRacerCount();
+  });
+  return !!channel;
+}
+function renderPlayers(){
+  if(!channel)return;
+  const state=channel.presenceState(),rows=[];
+  for(const id of Object.keys(state)){const p=state[id]?.[0]||{};rows.push('<div style="padding:9px;border:1px solid #e5eaf2;border-radius:9px;margin:6px 0"><strong>'+escapeHtml(p.name||"Racer")+'</strong>'+(id===currentUser?.id?' <span class="note">(you)</span>':"")+'</div>');}
+  $("playerList").innerHTML=rows.join("")||"Waiting for racers…";
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function resetRace(){
+  raceRunning=false;paused=false;finished=false;lap=0;elapsed=0;speed=0;heading=0;steer=0;
+  kart.position.set(48,0,0);kart.rotation.y=0;previousTrackT=0;raceStartAt=0;raceStartedAt=0;
+  $("lap").textContent="1 / "+maxLaps;$("speed").textContent="0 km/h";$("time").textContent="00:00.0";$("countdown").classList.add("hidden");
+}
+function beginRace(startAt=Date.now()+3000){
+  resetRace();raceStartAt=startAt;raceRunning=true;setPanel("");showMessage("Get ready! W / ↑ accelerate · A/D / ← → steer · Space drift");
+}
+function startRace(){
+  if(channel&&isRoomHost){const startAt=Date.now()+3500;channel.send({type:"broadcast",event:"race-start",payload:{startAt}});beginRace(startAt);}
+  else beginRace(Date.now()+3000);
+}
+$("soloBtn").onclick=()=>{if(channel){supabase.removeChannel(channel);channel=null;roomCode="";remotePlayers.forEach((_,id)=>removeRemote(id));updateRacerCount();}setPanel("");beginRace();};
+$("createRoomBtn").onclick=async()=>{await getIdentity();if(!currentUser){$("roomStatus").textContent="Please sign in to Student Hub before creating a multiplayer room.";return;}await connectRoom(randomCode(),true);};
+$("joinRoomBtn").onclick=async()=>{await getIdentity();const code=$("roomInput").value.trim().toUpperCase();if(code.length!==6){$("roomStatus").textContent="Enter a 6-character room code.";return;}await connectRoom(code,false);};
+$("copyCodeBtn").onclick=async()=>{try{await navigator.clipboard.writeText(roomCode);$("lobbyStatus").textContent="Room code copied! Share it with your friends.";}catch{$("lobbyStatus").textContent="Your room code is "+roomCode+". Select and copy it."; }};
+$("startRaceBtn").onclick=startRace;
+$("leaveRoomBtn").onclick=async()=>{if(channel)await supabase.removeChannel(channel);channel=null;roomCode="";remotePlayers.forEach((_,id)=>removeRemote(id));updateRacerCount();setPanel("menu");};
+$("exitBtn").onclick=()=>{if(channel){supabase.removeChannel(channel);channel=null;}resetRace();setPanel("menu");};
+$("finishExitBtn").onclick=$("exitBtn").onclick;
+$("pauseBtn").onclick=()=>{if(!raceRunning||finished)return;paused=true;setPanel("pausePanel");};
+$("resumeBtn").onclick=()=>{paused=false;setPanel("");};
+$("pauseExitBtn").onclick=$("exitBtn").onclick;
+$("againBtn").onclick=()=>{if(channel&&!isRoomHost){showMessage("Ask the room host to start the next race.");setPanel("lobby");return;}startRace();};
+
+window.addEventListener("keydown",e=>{if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key))e.preventDefault();keys.add(e.key.toLowerCase());if(e.key==="Escape"&&raceRunning)$("pauseBtn").click();});
+window.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
+document.querySelectorAll("[data-key]").forEach(button=>{
+  const key=button.dataset.key.toLowerCase();
+  button.addEventListener("pointerdown",e=>{e.preventDefault();keys.add(key);button.setPointerCapture(e.pointerId);});
+  const release=()=>keys.delete(key);button.addEventListener("pointerup",release);button.addEventListener("pointercancel",release);button.addEventListener("lostpointercapture",release);
+});
+window.addEventListener("blur",()=>keys.clear());
+
+const clock=new THREE.Clock();
+function update(dt,now){
+  if(raceRunning&&!paused&&!finished){
+    if(now<raceStartAt){$("countdown").classList.remove("hidden");$("countdown").textContent=String(Math.max(1,Math.ceil((raceStartAt-now)/1000)));speed=0;}
+    else{
+      $("countdown").classList.add("hidden");
+      if(!raceStartedAt)raceStartedAt=now;
+      elapsed=now-raceStartedAt;
+      const forward=keys.has("w")||keys.has("arrowup"),back=keys.has("s")||keys.has("arrowdown");
+      const left=keys.has("a")||keys.has("arrowleft"),right=keys.has("d")||keys.has("arrowright"),drift=keys.has(" ");
+      if(forward)speed=Math.min(35,speed+22*dt);else speed=Math.max(0,speed-5*dt);
+      if(back)speed=Math.max(-10,speed-30*dt);
+      const steerInput=(right?1:0)-(left?1:0);
+      const steerStrength=Math.min(1,Math.abs(speed)/8);
+      steer+=(steerInput*2.15*steerStrength-steer*7*dt)*Math.min(1,dt*8);
+      heading+=steer*dt*(drift?1.35:1)*Math.sign(speed||1);
+      if(!forward&&!back)speed*=Math.pow(.985,dt*60);
+      const direction=new THREE.Vector3(Math.sin(heading),0,Math.cos(heading));
+      kart.position.addScaledVector(direction,speed*dt);
+      const nearest=closestTrackT(kart.position),t=nearest.t,center=centerAt(t),side=sideAt(t);
+      const lateral=(kart.position.x-center.x)*side.x+(kart.position.z-center.z)*side.z;
+      if(Math.abs(lateral)>roadHalfWidth-1){
+        const clamped=Math.sign(lateral)*(roadHalfWidth-1);
+        kart.position.x=center.x+side.x*clamped;kart.position.z=center.z+side.z*clamped;
+        speed*=.82;
+      }
+      if(previousTrackT>.88&&t<.12&&speed>2){lap++;$("lap").textContent=Math.min(lap+1,maxLaps)+" / "+maxLaps;if(lap>=maxLaps){finished=true;raceRunning=false;$("finishTime").textContent="Your time: "+formatTime(elapsed);setPanel("finish");}}
+      previousTrackT=t;
+      kart.rotation.y=heading;
+      if(drift&&Math.abs(steerInput)>0)speed=Math.max(0,speed-.8*dt);
+      $("speed").textContent=Math.round(Math.abs(speed)*3.6)+" km/h";
+      $("time").textContent=formatTime(elapsed);
+      if(channel&&now-lastBroadcast>100){
+        lastBroadcast=now;channel.send({type:"broadcast",event:"kart-state",payload:{id:currentUser.id,name:playerName,x:kart.position.x,z:kart.position.z,heading,lap}});
+      }
+    }
+  }
+  for(const remote of remotePlayers.values()){
+    remote.obj.position.lerp(remote.target,Math.min(1,dt*9));remote.obj.rotation.y=remote.heading;
+  }
+  const behind=new THREE.Vector3(-Math.sin(heading)*11,7.2,-Math.cos(heading)*11);
+  const desired=kart.position.clone().add(behind);
+  camera.position.lerp(desired,Math.min(1,dt*5));
+  camera.lookAt(kart.position.x,kart.position.y+1.2,kart.position.z);
+  if(raceRunning&&!paused&&!finished&&raceStartedAt&&now-raceStartedAt>0&&channel&&now-lastBroadcast>250)showMessage("Room "+roomCode+" · Race with your friends!");
+}
+function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.04);update(dt,Date.now());renderer.render(scene,camera);}
+animate();
+window.addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.8));});
+await getIdentity();
+$("roomStatus").textContent=currentUser?"Signed in as "+playerName+". Multiplayer is ready.":"Single-player is ready. Sign in to Student Hub for multiplayer.";
+</script>
+</body>
+</html>
