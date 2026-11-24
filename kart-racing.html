@@ -320,7 +320,10 @@ function update(dt,now){
       const lateral=(kart.position.x-center.x)*side.x+(kart.position.z-center.z)*side.z;
       // Keep the entire kart clear of both rails. Apply the full correction in this
       // frame so high speed cannot carry it beyond the outside edge between frames.
-      const safeRoadHalfWidth=roadHalfWidth-2.55;
+      // Keep the kart's center closer to the visible rail before correcting it.
+      // The previous 2.55-unit inset created an oversized invisible wall.
+      // 1.55 leaves room for the 1.25-unit half-width kart body plus a small margin.
+      const safeRoadHalfWidth=roadHalfWidth-1.55;
       if(Math.abs(lateral)>safeRoadHalfWidth){
         const clamped=Math.sign(lateral)*safeRoadHalfWidth;
         const correction=lateral-clamped;
