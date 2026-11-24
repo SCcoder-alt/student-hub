@@ -297,25 +297,32 @@ function update(dt,now){
       elapsed=now-raceStartedAt;
       const forward=keys.has("w")||keys.has("arrowup"),back=keys.has("s")||keys.has("arrowdown");
       const left=keys.has("a")||keys.has("arrowleft"),right=keys.has("d")||keys.has("arrowright"),drift=keys.has(" ");
-      if(forward)speed=Math.min(35,speed+22*dt);else speed=Math.max(0,speed-5*dt);
-      if(back)speed=Math.max(-10,speed-30*dt);
+      // Separate throttle and reverse so holding S/Down reliably drives backward.
+      if(forward&&!back) speed=Math.min(35,speed+22*dt);
+      else if(back&&!forward){
+        if(speed>0) speed=Math.max(0,speed-42*dt);
+        else speed=Math.max(-18,speed-20*dt);
+      }else if(!forward&&!back) speed*=Math.pow(.985,dt*60);
+
+      // Lower steering rate and stronger damping make turns much less twitchy.
       const steerInput=(right?1:0)-(left?1:0);
-      const steerStrength=Math.min(1,Math.abs(speed)/8);
-      steer+=(steerInput*2.15*steerStrength-steer*7*dt)*Math.min(1,dt*8);
-      heading+=steer*dt*(drift?1.35:1)*Math.sign(speed||1);
-      if(!forward&&!back)speed*=Math.pow(.985,dt*60);
+      const steerStrength=Math.min(1,Math.abs(speed)/14);
+      steer+=(steerInput*.78*steerStrength-steer*9.5*dt)*Math.min(1,dt*10);
+      heading+=steer*dt*(drift?1.12:1)*Math.sign(speed||1);
+
       const direction=new THREE.Vector3(Math.sin(heading),0,Math.cos(heading));
       kart.position.addScaledVector(direction,speed*dt);
+
+      // Keep the kart inside the drivable surface without snapping it across the road.
       const nearest=closestTrackT(kart.position),t=nearest.t,center=centerAt(t),side=sideAt(t);
       const lateral=(kart.position.x-center.x)*side.x+(kart.position.z-center.z)*side.z;
-      const safeRoadHalfWidth=roadHalfWidth-1.7;
+      const safeRoadHalfWidth=roadHalfWidth-2.35;
       if(Math.abs(lateral)>safeRoadHalfWidth){
-        const clamped=Math.sign(lateral)*safeRoadHalfWidth;
-        // Correct only the sideways component; preserve forward progress along the track.
-        const correction=lateral-clamped;
+        const excess=Math.abs(lateral)-safeRoadHalfWidth;
+        const correction=Math.sign(lateral)*Math.min(excess,.65);
         kart.position.x-=side.x*correction;
         kart.position.z-=side.z*correction;
-        speed*=.72;
+        speed*=.88;
       }
       if(previousTrackT>.88&&t<.12&&speed>2){lap++;$("lap").textContent=Math.min(lap+1,maxLaps)+" / "+maxLaps;if(lap>=maxLaps){finished=true;raceRunning=false;$("finishTime").textContent="Your time: "+formatTime(elapsed);setPanel("finish");}}
       previousTrackT=t;
