@@ -42,7 +42,7 @@
     <div class="dialog">
       <p class="eyebrow">STUDENT HUB ARCADE · 3D</p>
       <h1>🏁 Kart Racing</h1>
-      <p>Race around the island circuit, complete three laps, and try to beat your best time.</p>
+      <p>Race through Tropical Twist Circuit: sweeping bends, tight turns, bright island scenery, and three laps to conquer.</p>
       <div class="row"><button class="btn primary" id="soloBtn">Play solo</button></div>
       <hr>
       <h3>Race with friends</h3>
@@ -122,41 +122,74 @@ const mat = (color, roughness=.85) => new THREE.MeshStandardMaterial({color,roug
 const grassMat=mat(0x4d9b55), roadMat=mat(0x343b49), curbMat=mat(0xf3f3f3), redMat=mat(0xe34c48), whiteMat=mat(0xffffff), treeMat=mat(0x247044), trunkMat=mat(0x805334);
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(360,360),grassMat);ground.rotation.x=-Math.PI/2;ground.position.y=-.12;ground.receiveShadow=true;scene.add(ground);
 
-function centerAt(t){return new THREE.Vector3(48*Math.cos(t),0,31*Math.sin(t));}
-function tangentAt(t){return new THREE.Vector3(-48*Math.sin(t),0,31*Math.cos(t)).normalize();}
+// Tropical Twist Circuit: a closed, hand-shaped course with straights, sweepers,
+ // and tighter bends. All track systems use the same normalized 0..1 parameter.
+const courseCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(48,0,0),
+  new THREE.Vector3(45,0,17),
+  new THREE.Vector3(34,0,33),
+  new THREE.Vector3(15,0,42),
+  new THREE.Vector3(-8,0,41),
+  new THREE.Vector3(-29,0,32),
+  new THREE.Vector3(-44,0,15),
+  new THREE.Vector3(-46,0,-7),
+  new THREE.Vector3(-33,0,-27),
+  new THREE.Vector3(-11,0,-41),
+  new THREE.Vector3(13,0,-40),
+  new THREE.Vector3(33,0,-27),
+  new THREE.Vector3(42,0,-12)
+], true, "catmullrom", 0.18);
+function centerAt(t){return courseCurve.getPointAt(THREE.MathUtils.euclideanModulo(t,1));}
+function tangentAt(t){return courseCurve.getTangentAt(THREE.MathUtils.euclideanModulo(t,1)).normalize();}
 function sideAt(t){const d=tangentAt(t);return new THREE.Vector3(d.z,0,-d.x).normalize();}
-for(let i=0;i<trackSamples;i++)trackPoints.push(centerAt(i/trackSamples*Math.PI*2));
+for(let i=0;i<trackSamples;i++)trackPoints.push(centerAt(i/trackSamples));
 const roadVertices=[],roadIndices=[];
 for(let i=0;i<=trackSamples;i++){
-  const t=i/trackSamples*Math.PI*2,p=centerAt(t),s=sideAt(t);
+  const t=i/trackSamples,p=centerAt(t),s=sideAt(t);
   roadVertices.push(p.x+s.x*roadHalfWidth,.02,p.z+s.z*roadHalfWidth,p.x-s.x*roadHalfWidth,.02,p.z-s.z*roadHalfWidth);
   if(i<trackSamples){const a=i*2,b=a+1,c=a+2,d=a+3;roadIndices.push(a,b,c,b,d,c);}
 }
 const roadGeo=new THREE.BufferGeometry();roadGeo.setAttribute("position",new THREE.Float32BufferAttribute(roadVertices,3));roadGeo.setIndex(roadIndices);roadGeo.computeVertexNormals();
 const road=new THREE.Mesh(roadGeo,roadMat);road.receiveShadow=true;scene.add(road);
 function makeRail(sign,color){
-  const pts=[];for(let i=0;i<=trackSamples;i++){const t=i/trackSamples*Math.PI*2,p=centerAt(t),s=sideAt(t);pts.push(new THREE.Vector3(p.x+s.x*(roadHalfWidth+.55)*sign, .65,p.z+s.z*(roadHalfWidth+.55)*sign));}
+  const pts=[];for(let i=0;i<=trackSamples;i++){const t=i/trackSamples,p=centerAt(t),s=sideAt(t);pts.push(new THREE.Vector3(p.x+s.x*(roadHalfWidth+.55)*sign, .65,p.z+s.z*(roadHalfWidth+.55)*sign));}
   const curve=new THREE.CatmullRomCurve3(pts,true);const rail=new THREE.Mesh(new THREE.TubeGeometry(curve,trackSamples,0.42,8,true),mat(color));rail.castShadow=true;scene.add(rail);
 }
 makeRail(1,0xf4f5f7);makeRail(-1,0xf4f5f7);
 for(let i=0;i<trackSamples;i+=12){
-  const t=i/trackSamples*Math.PI*2,p=centerAt(t),s=sideAt(t);
+  const t=i/trackSamples,p=centerAt(t),s=sideAt(t);
   const marker=new THREE.Mesh(new THREE.BoxGeometry(.22,.04,2.1),whiteMat);marker.position.set(p.x,.08,p.z);marker.rotation.y=Math.atan2(tangentAt(t).x,tangentAt(t).z);scene.add(marker);
   for(const sign of [-1,1]){
     const curb=new THREE.Mesh(new THREE.BoxGeometry(2.1,.14,.9),i%24===0?redMat:whiteMat);
     curb.position.set(p.x+s.x*roadHalfWidth*.91,.12,p.z+s.z*roadHalfWidth*.91);curb.rotation.y=Math.atan2(tangentAt(t).x,tangentAt(t).z);scene.add(curb);
   }
 }
+// Checkered start/finish strip across the full road width.
+for(let i=0;i<8;i++){
+  const tile=new THREE.Mesh(new THREE.BoxGeometry(2,.07,1.25),i%2?whiteMat:mat(0x202633));
+  tile.position.set(48-7+i*2,.09,0);
+  scene.add(tile);
+}
+// Colorful start/finish arch.
+const archMat=mat(0xffcf45,.5),archDark=mat(0x3156bd,.55);
+for(const x of [39.8,56.2]){
+  const post=new THREE.Mesh(new THREE.BoxGeometry(.8,5.5,.8),archMat);
+  post.position.set(x,2.75,0);post.castShadow=true;scene.add(post);
+}
+const archTop=new THREE.Mesh(new THREE.BoxGeometry(17.2,.9,.9),archDark);
+archTop.position.set(48,5.45,0);archTop.castShadow=true;scene.add(archTop);
+const archSign=new THREE.Mesh(new THREE.BoxGeometry(7.5,1.15,.16),mat(0xff5b62,.5));
+archSign.position.set(48,5.45,.52);scene.add(archSign);
 const startT=0;
 for(let i=0;i<10;i++){
-  const t=i/10*.32*Math.PI/2,p=centerAt(t),s=sideAt(t);
+  const t=i/10*.32,p=centerAt(t),s=sideAt(t);
   const tree=new THREE.Group();
   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.35,.5,2.4,7),trunkMat);trunk.position.y=1.2;trunk.castShadow=true;tree.add(trunk);
   const crown=new THREE.Mesh(new THREE.ConeGeometry(2.2,5,7),treeMat);crown.position.y=4; crown.castShadow=true;tree.add(crown);
   tree.position.set(p.x+s.x*17,0,p.z+s.z*17);scene.add(tree);
 }
 for(let i=0;i<36;i++){
-  const t=i/36*Math.PI*2,p=centerAt(t),s=sideAt(t),sign=i%2?1:-1;
+  const t=i/36,p=centerAt(t),s=sideAt(t),sign=i%2?1:-1;
   const group=new THREE.Group();
   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.28,.4,2,7),trunkMat);trunk.position.y=1;group.add(trunk);
   const crown=new THREE.Mesh(new THREE.ConeGeometry(1.7,4,7),treeMat);crown.position.y=3.6;group.add(crown);
