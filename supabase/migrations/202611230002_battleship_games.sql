@@ -245,7 +245,9 @@ begin
   if v_user is null then raise exception 'Sign in to view this game.'; end if;
   select * into v_game from public.battleship_games where id=_game_id;
   if not found or not public.is_dm_member(v_game.conversation_id) then raise exception 'Game not found.'; end if;
-  if v_user not in (v_game.player_one,v_game.player_two) then raise exception 'You are not a player in this game.'; end if;
+  if v_user <> v_game.player_one and (v_game.player_two is null or v_user <> v_game.player_two) then
+    raise exception 'You are not a player in this game.';
+  end if;
   if v_user=v_game.player_one then
     v_own_fleet:=v_game.fleet_one; v_enemy_fleet:=v_game.fleet_two;
     v_outgoing:=v_game.shots_one; v_incoming:=v_game.shots_two;
