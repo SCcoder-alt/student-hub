@@ -449,7 +449,11 @@ async function loadPrivateGames(conversationId) {
   const { data: triviaGames, error: triviaError } = await supabase.rpc("list_trivia_games_for_conversation", { _conversation_id: conversationId });
   if (triviaError) console.warn("Could not load Trivia games:", triviaError.message);
   host.insertAdjacentHTML("beforeend", renderTriviaGameList(triviaGames || []));
-  await loadBattleshipGames(conversationId);
+  if (activeConversationType === "group") {
+    host.querySelector(".bs-section")?.remove();
+  } else {
+    await loadBattleshipGames(conversationId);
+  }
 }
 
 
