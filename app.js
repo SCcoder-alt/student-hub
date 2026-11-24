@@ -533,7 +533,8 @@ function renderBattleshipState(state) {
   }
   return '<article class="bs-game"><div class="ttt-game-top"><strong>🚢 Battleship</strong><span class="meta">' +
     escapeHTML(status) + '</span></div>' + boards +
-    '<div class="bs-footer"><button type="button" class="small-button" data-bs-refresh="' + state.id + '">Refresh game</button></div></article>';
+    '<div class="bs-footer">' + (state.status === "won" ? '<button type="button" class="small-button" data-bs-create="' + activeConversationId + '">Rematch</button>' : '') +
+    '<button type="button" class="small-button" data-bs-refresh="' + state.id + '">Refresh game</button></div></article>';
 }
 async function openBattleshipGame(gameId) {
   const host = $("#chatGames");
