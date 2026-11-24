@@ -463,8 +463,10 @@ function bsGridMarkup(gameId, mode, ships, shots, hits) {
   const shipCells = new Set(bsCellsForFleet(ships));
   const shotSet = new Set(shots || []);
   const hitSet = new Set(hits || []);
-  return '<div class="bs-grid" role="group" aria-label="Battleship 10 by 10 grid">' +
-    Array.from({ length: 100 }, (_, cell) => {
+  const letters = "ABCDEFGHIJ".split("").map(letter => '<span class="bs-axis">' + letter + '</span>').join("");
+  const rows = Array.from({ length: 10 }, (_, rowIndex) => {
+    const cells = Array.from({ length: 10 }, (_, colIndex) => {
+      const cell = rowIndex * 10 + colIndex;
       const isShip = shipCells.has(cell);
       const shot = shotSet.has(cell);
       const cls = shot ? (hitSet.has(cell) ? " bs-hit" : " bs-miss") : (isShip ? " bs-ship" : "");
@@ -472,12 +474,14 @@ function bsGridMarkup(gameId, mode, ships, shots, hits) {
       const action = mode === "attack"
         ? ' data-bs-attack="' + gameId + '" data-bs-cell="' + cell + '"'
         : mode === "place" ? ' data-bs-place-cell="' + cell + '"' : "";
-      const row = Math.floor(cell / 10) + 1;
-      const col = cell % 10 + 1;
-      const label = "Row " + row + ", column " + col + (shot ? (hitSet.has(cell) ? ", hit" : ", miss") : "");
+      const label = "Row " + (rowIndex + 1) + ", column " + letters[colIndex];
       return '<button type="button" class="bs-cell' + cls + '"' + action + disabled +
         ' aria-label="' + label + '">' + (shot ? (hitSet.has(cell) ? "✕" : "·") : (isShip ? "■" : "")) + '</button>';
-    }).join("") + '</div>';
+    }).join("");
+    return '<span class="bs-axis">' + (rowIndex + 1) + '</span>' + cells;
+  }).join("");
+  return '<div class="bs-grid" role="group" aria-label="Battleship grid, rows 1 to 10 and columns A to J">' +
+    '<span class="bs-axis"></span>' + letters + rows + '</div>';
 }
 function getBattleshipDraft(gameId) {
   if (!battleshipDrafts[gameId]) battleshipDrafts[gameId] = {
