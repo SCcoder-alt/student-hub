@@ -1441,6 +1441,7 @@ async function loadMessagesPanel() {
 }
 
 async function openConversation(conversationId, otherUserId) {
+  if (activeConversationId !== conversationId) openBattleshipId = null;
   activeConversationId = conversationId;
   activeChatOtherUserId = otherUserId || null;
   const host = $("#chatMessages");
