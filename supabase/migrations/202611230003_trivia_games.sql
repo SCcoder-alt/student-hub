@@ -265,6 +265,10 @@ begin
       jsonb_build_object('id',v_question.id,'position',v_question.position,'prompt',v_question.prompt,'choices',v_question.choices)
       else null end,
     'has_answered',v_has_answered,'players',v_player_list,
+    'questions',case when v_user=v_game.created_by and v_game.status='waiting' then
+      coalesce((select jsonb_agg(jsonb_build_object('id',q.id,'position',q.position,'prompt',q.prompt,'choices',q.choices) order by q.position)
+        from public.trivia_questions q where q.game_id=_game_id),'[]'::jsonb)
+      else '[]'::jsonb end,
     'is_creator',v_user=v_game.created_by
   );
 end;
