@@ -80,7 +80,7 @@ begin
   if public.is_current_user_banned() then raise exception 'This account is suspended.'; end if;
   select * into v_game from public.battleship_games where id=_game_id for update;
   if not found then raise exception 'Game not found.'; end if;
-  if v_game.status not in ('placing','active') then raise exception 'This game is not accepting fleet placements.'; end if;
+  if v_game.status <> 'placing' then raise exception 'This game is not accepting fleet placements.'; end if;
   if v_user not in (v_game.player_one,v_game.player_two) then raise exception 'You are not a player in this game.'; end if;
   if jsonb_typeof(_fleet) <> 'array' or jsonb_array_length(_fleet) <> 5 then raise exception 'Place all five ships.'; end if;
 
@@ -110,8 +110,10 @@ begin
   if cardinality(v_all) <> 17 then raise exception 'Fleet must contain exactly 17 ship squares.'; end if;
 
   if v_user=v_game.player_one then
+    if v_game.fleet_one is not null then raise exception 'Your fleet is already locked in.'; end if;
     update public.battleship_games set fleet_one=_fleet,updated_at=now() where id=_game_id;
   else
+    if v_game.fleet_two is not null then raise exception 'Your fleet is already locked in.'; end if;
     update public.battleship_games set fleet_two=_fleet,updated_at=now() where id=_game_id;
   end if;
 
