@@ -183,17 +183,19 @@ kart.position.set(48,0,0);
 let heading=0,speed=0,steer=0;
 const remoteColors=[0xf04e4e,0x9b59d0,0xff9f43,0x1abc9c,0xe84393];
 function closestTrackT(pos){
-  let best=Infinity,bestT=0;
-  for(let i=0;i<trackSamples;i++){const p=trackPoints[i],d=pos.distanceToSquared(p);if(d<best){best=d;bestT=i/trackSamples;}}
-  // Refine the nearest point between samples so collision correction doesn't snap the kart.
-  let lo=bestT-1/trackSamples,hi=bestT+1/trackSamples;
-  for(let i=0;i<14;i++){
-    const a=lo+(hi-lo)/3,b=hi-(hi-lo)/3;
-    if(pos.distanceToSquared(centerAt(a))<pos.distanceToSquared(centerAt(b)))hi=b;else lo=a;
+  // Find the closest point on each sampled track segment, not just each sample vertex.
+  // This remains stable around the full loop, including the start/finish seam.
+  let bestDistance=Infinity,bestT=0;
+  for(let i=0;i<trackSamples;i++){
+    const a=trackPoints[i],b=trackPoints[(i+1)%trackSamples];
+    const abX=b.x-a.x,abZ=b.z-a.z;
+    const lengthSq=abX*abX+abZ*abZ;
+    const fraction=THREE.MathUtils.clamp(((pos.x-a.x)*abX+(pos.z-a.z)*abZ)/lengthSq,0,1);
+    const dx=pos.x-(a.x+abX*fraction),dz=pos.z-(a.z+abZ*fraction);
+    const distance=dx*dx+dz*dz;
+    if(distance<bestDistance){bestDistance=distance;bestT=(i+fraction)/trackSamples;}
   }
-  const t=((lo+hi)/2+1)%1;
-  const center=centerAt(t);
-  return {t,distance:Math.sqrt(pos.distanceToSquared(center))};
+  return {t:bestT,distance:Math.sqrt(bestDistance)};
 }
 function createRemote(id,name){
   const obj=makeKart(remoteColors[remotePlayers.size%remoteColors.length],name||"Racer");
@@ -316,13 +318,15 @@ function update(dt,now){
       // Keep the kart inside the drivable surface without snapping it across the road.
       const nearest=closestTrackT(kart.position),t=nearest.t,center=centerAt(t),side=sideAt(t);
       const lateral=(kart.position.x-center.x)*side.x+(kart.position.z-center.z)*side.z;
-      const safeRoadHalfWidth=roadHalfWidth-2.35;
+      // Keep the entire kart clear of both rails. Apply the full correction in this
+      // frame so high speed cannot carry it beyond the outside edge between frames.
+      const safeRoadHalfWidth=roadHalfWidth-2.55;
       if(Math.abs(lateral)>safeRoadHalfWidth){
-        const excess=Math.abs(lateral)-safeRoadHalfWidth;
-        const correction=Math.sign(lateral)*Math.min(excess,.65);
+        const clamped=Math.sign(lateral)*safeRoadHalfWidth;
+        const correction=lateral-clamped;
         kart.position.x-=side.x*correction;
         kart.position.z-=side.z*correction;
-        speed*=.88;
+        speed*=.78;
       }
       if(previousTrackT>.88&&t<.12&&speed>2){lap++;$("lap").textContent=Math.min(lap+1,maxLaps)+" / "+maxLaps;if(lap>=maxLaps){finished=true;raceRunning=false;$("finishTime").textContent="Your time: "+formatTime(elapsed);setPanel("finish");}}
       previousTrackT=t;
