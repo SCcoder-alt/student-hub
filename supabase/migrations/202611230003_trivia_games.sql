@@ -331,3 +331,25 @@ grant execute on function public.advance_trivia_question(uuid) to authenticated;
 grant execute on function public.get_trivia_game(uuid) to anon,authenticated;
 grant execute on function public.list_trivia_games_for_posts(uuid[]) to anon,authenticated;
 grant execute on function public.list_trivia_games_for_conversation(uuid) to authenticated;
+
+
+-- Battleship is intentionally limited to one-to-one direct conversations.
+create or replace function public.create_battleship_game(_conversation_id uuid)
+returns uuid
+language plpgsql security definer set search_path=''
+as $$
+declare v_user uuid:=auth.uid(); v_id uuid;
+begin
+  if v_user is null then raise exception 'Sign in to create a game.'; end if;
+  if public.is_current_user_banned() then raise exception 'This account is suspended.'; end if;
+  if not public.is_dm_member(_conversation_id) then raise exception 'Only conversation members can create a game.'; end if;
+  if exists(select 1 from public.dm_conversations where id=_conversation_id and conversation_type='group') then
+    raise exception 'Battleship is only available in direct messages.';
+  end if;
+  insert into public.battleship_games(conversation_id,created_by,player_one)
+  values(_conversation_id,v_user,v_user) returning id into v_id;
+  return v_id;
+end;
+$$;
+revoke all on function public.create_battleship_game(uuid) from public;
+grant execute on function public.create_battleship_game(uuid) to authenticated;
