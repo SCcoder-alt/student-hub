@@ -493,6 +493,7 @@ function openTriviaCreateDialog(scope, targetId) {
     document.body.appendChild(modal);
   }
   if (triviaPollTimer) clearInterval(triviaPollTimer);
+  triviaPollTimer = null;
   activeTriviaGameId = null;
   modal.innerHTML = '<section class="trivia-dialog" role="dialog" aria-modal="true" aria-label="Create Trivia game">' +
     '<div class="trivia-dialog-heading"><div><p class="eyebrow">STUDENT HUB ARCADE</p><h3>Create Trivia</h3></div>' +
@@ -523,11 +524,22 @@ async function openTriviaGame(gameId) {
 }
 
 async function refreshTriviaGame() {
-  if (!activeTriviaGameId) return;
-  const { data, error } = await supabase.rpc("get_trivia_game", { _game_id: activeTriviaGameId });
-  if (error) { toast(error.message); return; }
+  const gameId = activeTriviaGameId;
+  if (!gameId) return;
+
+  // Do not rebuild the dialog while someone is editing a form.
+  // Replacing modal.innerHTML here would erase their unsaved question/answers.
   const modal = document.getElementById("triviaModal");
   if (!modal || modal.classList.contains("hidden")) return;
+  if (modal.contains(document.activeElement) && document.activeElement.closest("form")) return;
+
+  const { data, error } = await supabase.rpc("get_trivia_game", { _game_id: gameId });
+  if (error) { toast(error.message); return; }
+
+  // Ignore an older poll if the user switched games or opened the create dialog.
+  if (activeTriviaGameId !== gameId || !modal.isConnected || modal.classList.contains("hidden")) return;
+  if (modal.contains(document.activeElement) && document.activeElement.closest("form")) return;
+
   const game = data;
   const players = game.players || [];
   const playerRows = players.map((player,index) =>
