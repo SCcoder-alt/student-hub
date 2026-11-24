@@ -399,6 +399,7 @@ async function loadPrivateGames(conversationId) {
     .order("created_at", { ascending: false }).limit(20);
   if (error) { host.textContent = "Could not load games: " + error.message; return; }
   host.innerHTML = renderGameSection(data || [], "message", conversationId);
+  await loadBattleshipGames(conversationId);
 }
 
 async function handleTicTacToeAction(event) {
@@ -439,6 +440,215 @@ async function handleTicTacToeAction(event) {
   if (createPost || (join && !join.closest("#chatGames")) || (move && !move.closest("#chatGames"))) await refreshFeeds();
 }
 document.addEventListener("click", handleTicTacToeAction);
+
+
+/* ---------------------------------------------------------------------------
+   CLASSIC BATTLESHIP: private DM games (10x10, standard five-ship fleet)
+--------------------------------------------------------------------------- */
+const BATTLESHIP_FLEET = [
+  { name: "Carrier", length: 5 },
+  { name: "Battleship", length: 4 },
+  { name: "Cruiser", length: 3 },
+  { name: "Submarine", length: 3 },
+  { name: "Destroyer", length: 2 }
+];
+const battleshipDrafts = {};
+let openBattleshipId = null;
+
+function bsCellsForFleet(fleet) {
+  return (fleet || []).flatMap(ship => ship.cells || []);
+}
+function bsGridMarkup(gameId, mode, ships, shots, hits) {
+  const shipCells = new Set(bsCellsForFleet(ships));
+  const shotSet = new Set(shots || []);
+  const hitSet = new Set(hits || []);
+  return '<div class="bs-grid" role="group" aria-label="Battleship 10 by 10 grid">' +
+    Array.from({ length: 100 }, (_, cell) => {
+      const isShip = shipCells.has(cell);
+      const shot = shotSet.has(cell);
+      const cls = shot ? (hitSet.has(cell) ? " bs-hit" : " bs-miss") : (isShip ? " bs-ship" : "");
+      const disabled = mode !== "attack" || shot ? " disabled" : "";
+      const action = mode === "attack" ? ' data-bs-attack="' + gameId + '" data-bs-cell="' + cell + '"' : "";
+      const row = Math.floor(cell / 10) + 1;
+      const col = cell % 10 + 1;
+      const label = "Row " + row + ", column " + col + (shot ? (hitSet.has(cell) ? ", hit" : ", miss") : "");
+      return '<button type="button" class="bs-cell' + cls + '"' + action + disabled +
+        ' aria-label="' + label + '">' + (shot ? (hitSet.has(cell) ? "✕" : "·") : (isShip ? "■" : "")) + '</button>';
+    }).join("") + '</div>';
+}
+function getBattleshipDraft(gameId) {
+  if (!battleshipDrafts[gameId]) battleshipDrafts[gameId] = {
+    ships: [], selected: "Carrier", orientation: "horizontal"
+  };
+  return battleshipDrafts[gameId];
+}
+function renderBattleshipPlacement(game) {
+  const draft = getBattleshipDraft(game.id);
+  const placed = new Set(draft.ships.map(s => s.name));
+  const choices = BATTLESHIP_FLEET.map(ship =>
+    '<button type="button" class="small-button ' + (draft.selected === ship.name ? "liked" : "") +
+    '" data-bs-select-ship="' + ship.name + '"' + (placed.has(ship.name) ? " disabled" : "") + '>' +
+    ship.name + ' (' + ship.length + ')</button>'
+  ).join("");
+  const ready = draft.ships.length === 5;
+  return '<div class="bs-placement"><p>Place your fleet. Select a ship, choose its direction, then select its starting square.</p>' +
+    '<div class="bs-controls">' + choices + '</div>' +
+    '<div class="bs-controls"><button type="button" class="small-button" data-bs-orientation="horizontal">Horizontal</button>' +
+    '<button type="button" class="small-button" data-bs-orientation="vertical">Vertical</button>' +
+    '<button type="button" class="small-button" data-bs-clear="' + game.id + '">Reset fleet</button></div>' +
+    bsGridMarkup(game.id, "place", draft.ships, [], []) +
+    '<p class="meta">' + draft.ships.length + ' of 5 ships placed. Ships cannot overlap or extend off the board.</p>' +
+    '<button type="button" class="primary" data-bs-submit-fleet="' + game.id + '"' + (ready ? "" : " disabled") + '>Lock in fleet</button></div>';
+}
+function renderBattleshipState(state) {
+  const status = state.status === "won"
+    ? (state.winner === currentUser.id ? "You won! All enemy ships are sunk." : "Your fleet was defeated.")
+    : state.status === "active"
+      ? (state.current_turn === currentUser.id ? "Your turn — choose a square on the enemy board." : "Waiting for your opponent's turn.")
+      : state.status === "placing" ? "Both players must place their fleets." : "Waiting for an opponent.";
+  let boards = "";
+  if (state.status === "placing" && !state.own_fleet) {
+    boards = renderBattleshipPlacement(state);
+  } else if (state.own_fleet) {
+    const ownShots = state.shots_received || [];
+    const ownHits = state.hits_received || [];
+    const enemyShots = state.shots_fired || [];
+    const enemyHits = state.hits_made || [];
+    boards = '<div class="bs-boards"><section><h4>Your fleet</h4>' +
+      bsGridMarkup(state.id, "own", state.own_fleet, ownShots, ownHits) +
+      '<p class="meta">Incoming hits: ' + ownHits.length + ' / 17</p></section>';
+    if (state.status === "active" || state.status === "won") {
+      boards += '<section><h4>Opponent waters</h4>' +
+        bsGridMarkup(state.id, "attack", [], enemyShots, enemyHits) +
+        '<p class="meta">Hits scored: ' + enemyHits.length + ' / 17</p></section>';
+    } else {
+      boards += '<section><h4>Opponent waters</h4><p class="muted">Your fleet is locked. Waiting for the other player to finish placing ships.</p></section>';
+    }
+    boards += '</div>';
+  } else {
+    boards = '<p class="muted">Your opponent is placing their fleet. Your ship positions remain private.</p>';
+  }
+  return '<article class="bs-game"><div class="ttt-game-top"><strong>🚢 Battleship</strong><span class="meta">' +
+    escapeHTML(status) + '</span></div>' + boards +
+    '<div class="bs-footer"><button type="button" class="small-button" data-bs-refresh="' + state.id + '">Refresh game</button></div></article>';
+}
+async function openBattleshipGame(gameId) {
+  const host = $("#chatGames");
+  const { data, error } = await supabase.rpc("get_battleship_state", { _game_id: gameId });
+  if (error) return toast(error.message);
+  openBattleshipId = gameId;
+  host.querySelectorAll(".bs-game-view").forEach(node => node.remove());
+  const view = document.createElement("div");
+  view.className = "bs-game-view";
+  view.innerHTML = renderBattleshipState(data);
+  host.appendChild(view);
+}
+async function loadBattleshipGames(conversationId) {
+  const host = $("#chatGames");
+  const { data, error } = await supabase.rpc("list_battleship_games", { _conversation_id: conversationId });
+  if (error) {
+    host.insertAdjacentHTML("beforeend", '<p class="muted">Battleship unavailable: ' + escapeHTML(error.message) + '</p>');
+    return;
+  }
+  const games = Array.isArray(data) ? data : [];
+  const rows = games.map(game => {
+    const status = game.status === "waiting" ? "Waiting for a player"
+      : game.status === "placing" ? "Fleet placement"
+      : game.status === "won" ? (game.winner === currentUser.id ? "You won" : "Finished")
+      : (game.current_turn === currentUser.id ? "Your turn" : "Opponent's turn");
+    const join = game.status === "waiting" && game.player_one !== currentUser.id
+      ? '<button type="button" class="small-button" data-bs-join="' + game.id + '">Accept challenge</button>' : "";
+    return '<div class="bs-challenge"><span><strong>Battleship</strong><small>' + escapeHTML(status) + '</small></span>' +
+      join + '<button type="button" class="small-button" data-bs-open="' + game.id + '">Open game</button></div>';
+  }).join("");
+  const section = '<section class="bs-section"><div class="ttt-section-heading"><strong>🚢 Battleship</strong>' +
+    '<button type="button" class="small-button" data-bs-create="' + conversationId + '">Challenge to Battleship</button></div>' +
+    (rows || '<p class="muted">No Battleship games yet. Challenge someone in this chat!</p>') + '</section>';
+  const prior = host.querySelector(".bs-section");
+  if (prior) prior.outerHTML = section;
+  else host.insertAdjacentHTML("beforeend", section);
+  if (openBattleshipId && !host.querySelector(".bs-game-view")) await openBattleshipGame(openBattleshipId);
+}
+document.addEventListener("click", async event => {
+  const create = event.target.closest("[data-bs-create]");
+  const join = event.target.closest("[data-bs-join]");
+  const open = event.target.closest("[data-bs-open]");
+  const refresh = event.target.closest("[data-bs-refresh]");
+  const select = event.target.closest("[data-bs-select-ship]");
+  const orientation = event.target.closest("[data-bs-orientation]");
+  const clear = event.target.closest("[data-bs-clear]");
+  const submit = event.target.closest("[data-bs-submit-fleet]");
+  const placeCell = event.target.closest(".bs-placement .bs-cell");
+  const attack = event.target.closest("[data-bs-attack]");
+  if (!create && !join && !open && !refresh && !select && !orientation && !clear && !submit && !placeCell && !attack) return;
+  if (!currentUser) return openAuth("login");
+
+  if (create) {
+    const { error } = await supabase.rpc("create_battleship_game", { _conversation_id: create.dataset.bsCreate });
+    if (error) return toast(error.message);
+    toast("Battleship challenge sent in this conversation!");
+    await loadBattleshipGames(activeConversationId);
+    return;
+  }
+  if (join) {
+    const { error } = await supabase.rpc("join_battleship_game", { _game_id: join.dataset.bsJoin });
+    if (error) return toast(error.message);
+    toast("Challenge accepted! Place your fleet.");
+    await loadBattleshipGames(activeConversationId);
+    await openBattleshipGame(join.dataset.bsJoin);
+    return;
+  }
+  if (open || refresh) {
+    await openBattleshipGame((open || refresh).dataset.bsOpen || (open || refresh).dataset.bsRefresh);
+    return;
+  }
+  const gameId = openBattleshipId;
+  if (!gameId) return;
+  const draft = getBattleshipDraft(gameId);
+  if (select) {
+    draft.selected = select.dataset.bsSelectShip;
+  } else if (orientation) {
+    draft.orientation = orientation.dataset.bsOrientation;
+  } else if (clear) {
+    battleshipDrafts[gameId] = { ships: [], selected: "Carrier", orientation: draft.orientation };
+  } else if (placeCell) {
+    const start = Number(placeCell.dataset.cell);
+    const ship = BATTLESHIP_FLEET.find(s => s.name === draft.selected);
+    if (!ship || draft.ships.some(s => s.name === ship.name)) return;
+    const cells = Array.from({ length: ship.length }, (_, i) =>
+      start + (draft.orientation === "horizontal" ? i : i * 10));
+    if (draft.orientation === "horizontal" && Math.floor(start / 10) !== Math.floor((start + ship.length - 1) / 10)) return toast("That ship would extend beyond the right edge.");
+    if (cells.some(c => c > 99 || bsCellsForFleet(draft.ships).includes(c))) return toast("That ship would overlap or extend off the board.");
+    draft.ships.push({ name: ship.name, cells });
+    const next = BATTLESHIP_FLEET.find(s => !draft.ships.some(p => p.name === s.name));
+    if (next) draft.selected = next.name;
+  } else if (submit) {
+    if (draft.ships.length !== 5) return toast("Place all five ships first.");
+    const { error } = await supabase.rpc("place_battleship_fleet", { _game_id: gameId, _fleet: draft.ships });
+    if (error) return toast(error.message);
+    delete battleshipDrafts[gameId];
+    toast("Fleet locked in!");
+    await openBattleshipGame(gameId);
+    await loadBattleshipGames(activeConversationId);
+    return;
+  } else if (attack) {
+    const { error } = await supabase.rpc("attack_battleship", {
+      _game_id: attack.dataset.bsAttack, _cell: Number(attack.dataset.bsCell)
+    });
+    if (error) return toast(error.message);
+    toast("Shot fired!");
+    await openBattleshipGame(attack.dataset.bsAttack);
+    await loadBattleshipGames(activeConversationId);
+    return;
+  }
+  if (openBattleshipId) {
+    const { data, error } = await supabase.rpc("get_battleship_state", { _game_id: gameId });
+    if (!error) {
+      const view = $("#chatGames").querySelector(".bs-game-view");
+      if (view) view.innerHTML = renderBattleshipState(data);
+    }
+  }
+});
 
 async function reportPost(postId) {
   const user = await getUser();
