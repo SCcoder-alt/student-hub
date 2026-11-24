@@ -251,3 +251,12 @@ footer{text-align:center;padding:35px;color:#71809a}
 .trivia-finished{text-align:center;padding:18px 8px}
 .trivia-dialog-footer{display:flex;justify-content:flex-end;margin-top:12px}
 @media(max-width:560px){.trivia-dialog{padding:16px}.trivia-choice-grid,.trivia-answer-grid{grid-template-columns:1fr}.trivia-card{align-items:flex-start;flex-direction:column}.trivia-card-actions{width:100%}.trivia-card-actions button{flex:1}}
+
+
+/* Hub Arcade game cards */
+.arcade-feature{display:grid;grid-template-columns:minmax(180px,.8fr) minmax(0,1.2fr);gap:24px;align-items:center;overflow:hidden;padding:24px;border:1px solid #dce5f2;border-radius:20px;background:linear-gradient(135deg,#e8f0ff,#f8fbff)}
+.arcade-art{display:grid;place-items:center;min-height:190px;border-radius:16px;background:linear-gradient(145deg,#86c8ee,#4775b9);font-size:clamp(5rem,12vw,8rem)}
+.arcade-copy h3{margin:4px 0;font-size:1.7rem}
+.arcade-copy p:not(.eyebrow){max-width:600px;color:#526078;line-height:1.55}
+.arcade-play{display:inline-block;margin-top:8px;text-decoration:none}
+@media(max-width:650px){.arcade-feature{grid-template-columns:1fr}.arcade-art{min-height:140px}}
