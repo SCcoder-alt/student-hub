@@ -381,11 +381,16 @@ function renderTicTacToeGame(game) {
 }
 
 const SOCIAL_GAME_CATALOG = [
-  { id: "tic_tac_toe", title: "Tic-Tac-Toe", description: "A quick classic for two players.", icon: "⭕", postAvailable: true },
-  { id: "battleship", title: "Battleship", description: "Place your fleet and take turns attacking.", icon: "🚢", postAvailable: false }
+  { id: "tic_tac_toe", title: "Tic-Tac-Toe", description: "A quick classic for two players.", icon: "⭕", postAvailable: true, directAvailable: true, groupAvailable: false },
+  { id: "battleship", title: "Battleship", description: "Place your fleet and take turns attacking.", icon: "🚢", postAvailable: false, directAvailable: true, groupAvailable: false }
 ];
 
-function openGamePicker(scope, targetId) {
+function getAvailableGames(scope, conversationType = "direct") {
+  if (scope === "post") return SOCIAL_GAME_CATALOG.filter(game => game.postAvailable);
+  return SOCIAL_GAME_CATALOG.filter(game => conversationType === "group" ? game.groupAvailable : game.directAvailable);
+}
+
+function openGamePicker(scope, targetId, conversationType = "direct") {
   if (!targetId) return toast(scope === "message" ? "Open a conversation first." : "Open a post first.");
   let overlay = document.getElementById("globalGamePicker");
   if (!overlay) {
@@ -395,15 +400,14 @@ function openGamePicker(scope, targetId) {
     overlay.setAttribute("data-game-picker-backdrop", "");
     document.body.appendChild(overlay);
   }
-  const choices = SOCIAL_GAME_CATALOG.map(game => {
-    const available = scope === "message" || game.postAvailable;
-    return '<button type="button" class="game-picker-option" data-game-choice="' + game.id +
-      '" data-game-scope="' + scope + '" data-game-target="' + targetId + '"' +
-      (!available ? ' disabled title="This game is currently available in DMs only."' : "") + '>' +
-      '<span class="game-picker-icon">' + game.icon + '</span><span class="game-picker-copy"><strong>' + game.title +
-      '</strong><small>' + (available ? game.description : "Currently available in DMs only") +
-      '</small></span><span class="game-picker-arrow">›</span></button>';
-  }).join("");
+  const choices = getAvailableGames(scope, conversationType).map(game =>
+    '<button type="button" class="game-picker-option" data-game-choice="' + game.id +
+    '" data-game-scope="' + scope + '" data-game-target="' + targetId + '">' +
+    '<span class="game-picker-icon">' + game.icon + '</span><span class="game-picker-copy"><strong>' + game.title +
+    '</strong><small>' + game.description +
+    '</small></span><span class="game-picker-arrow">›</span></button>'
+  ).join("");
+  if (!choices) return toast("There are no games available in this conversation yet.");
   const description = scope === "post"
     ? "Choose a game to add directly to this post."
     : "Pick a game to challenge people in this conversation.";
@@ -418,7 +422,8 @@ function openGamePicker(scope, targetId) {
 function renderGameSection(games, scope, targetId) {
   const items = games?.length ? games.map(renderTicTacToeGame).join("")
     : '<p class="muted">No games yet. Start one for others to join!</p>';
-  const create = currentUser
+  const canCreateHere = scope === "post" || (scope === "message" && activeConversationType !== "group" && getAvailableGames("message", activeConversationType).length > 0);
+  const create = !canCreateHere ? "" : currentUser
     ? '<button type="button" class="small-button" data-game-picker-open data-game-scope="' + scope +
       '" data-game-target="' + targetId + '">＋ Make Game</button>'
     : '<span class="meta">Sign in to start a game.</span>';
@@ -453,7 +458,7 @@ async function handleTicTacToeAction(event) {
     if (!currentUser) return openAuth("login");
     const scope = pickerOpen?.dataset.gameScope || "message";
     const targetId = pickerOpen?.dataset.gameTarget || createMessage?.dataset.createMessageGame || activeConversationId;
-    openGamePicker(scope, targetId);
+    openGamePicker(scope, targetId, scope === "message" ? activeConversationType : "direct");
     return;
   }
   if (pickerClose || (pickerBackdrop && event.target === pickerBackdrop)) {
