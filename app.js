@@ -304,8 +304,8 @@ async function loadPosts(section) {
     .select("id,author_id,title,content,author_name,created_at,is_pinned,status,image_path")
     .eq("section", section)
     .eq("status", "published")
-    .order("is_pinned", { ascending: false })
     .order("created_at", { ascending: false })
+    .order("is_pinned", { ascending: false })
     .limit(100);
   if (error) { console.error(error); feed.textContent = "Could not load posts."; return; }
   if (!data?.length) { feed.textContent = "No posts yet. Be the first to share something!"; return; }
