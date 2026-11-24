@@ -467,8 +467,10 @@ function bsGridMarkup(gameId, mode, ships, shots, hits) {
       const isShip = shipCells.has(cell);
       const shot = shotSet.has(cell);
       const cls = shot ? (hitSet.has(cell) ? " bs-hit" : " bs-miss") : (isShip ? " bs-ship" : "");
-      const disabled = mode !== "attack" || shot ? " disabled" : "";
-      const action = mode === "attack" ? ' data-bs-attack="' + gameId + '" data-bs-cell="' + cell + '"' : "";
+      const disabled = mode === "own" || (mode === "attack" && shot) ? " disabled" : "";
+      const action = mode === "attack"
+        ? ' data-bs-attack="' + gameId + '" data-bs-cell="' + cell + '"'
+        : mode === "place" ? ' data-bs-place-cell="' + cell + '"' : "";
       const row = Math.floor(cell / 10) + 1;
       const col = cell % 10 + 1;
       const label = "Row " + row + ", column " + col + (shot ? (hitSet.has(cell) ? ", hit" : ", miss") : "");
@@ -578,7 +580,7 @@ document.addEventListener("click", async event => {
   const orientation = event.target.closest("[data-bs-orientation]");
   const clear = event.target.closest("[data-bs-clear]");
   const submit = event.target.closest("[data-bs-submit-fleet]");
-  const placeCell = event.target.closest(".bs-placement .bs-cell");
+  const placeCell = event.target.closest("[data-bs-place-cell]");
   const attack = event.target.closest("[data-bs-attack]");
   if (!create && !join && !open && !refresh && !select && !orientation && !clear && !submit && !placeCell && !attack) return;
   if (!currentUser) return openAuth("login");
@@ -612,7 +614,7 @@ document.addEventListener("click", async event => {
   } else if (clear) {
     battleshipDrafts[gameId] = { ships: [], selected: "Carrier", orientation: draft.orientation };
   } else if (placeCell) {
-    const start = Number(placeCell.dataset.cell);
+    const start = Number(placeCell.dataset.bsPlaceCell);
     const ship = BATTLESHIP_FLEET.find(s => s.name === draft.selected);
     if (!ship || draft.ships.some(s => s.name === ship.name)) return;
     const cells = Array.from({ length: ship.length }, (_, i) =>
