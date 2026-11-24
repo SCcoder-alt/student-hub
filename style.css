@@ -99,3 +99,13 @@ footer{text-align:center;padding:35px;color:#71809a}
 .post-image-preview{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin:12px 0 18px;padding:12px;border:1px dashed #b9c7df;border-radius:14px;background:#f7f9fd}
 .post-image-preview img{display:block;max-width:100%;max-height:260px;object-fit:contain;border-radius:10px}
 .post-image-preview button{align-self:flex-start}
+
+/* Tic-Tac-Toe game panels */
+.ttt-section{margin:14px 0;padding:13px;border:1px solid #e3e9f3;border-radius:13px;background:#f8faff}
+.ttt-section-heading,.ttt-game-top,.ttt-game-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ttt-game{margin-top:12px;padding:12px;background:#fff;border:1px solid #e4eaf3;border-radius:12px}
+.ttt-board{display:grid;grid-template-columns:repeat(3,minmax(48px,72px));gap:5px;justify-content:center;margin:12px auto}
+.ttt-cell{aspect-ratio:1;border:1px solid #cbd5e5;border-radius:9px;background:#f5f8ff;color:#20345f;font-size:1.65rem;font-weight:800;cursor:pointer}
+.ttt-cell:not(:disabled):hover{background:#e5edff}
+.ttt-game-bottom{font-size:.85rem}
+.chat-games{margin:10px 0}
