@@ -380,13 +380,35 @@ function renderTicTacToeGame(game) {
     '<button type="button" class="text-button" data-game-refresh="' + game.id + '">Refresh</button></div></article>';
 }
 
+const PRIVATE_GAME_CATALOG = [
+  { id: "tic_tac_toe", title: "Tic-Tac-Toe", description: "A quick classic for two players.", icon: "⭕" },
+  { id: "battleship", title: "Battleship", description: "Place your fleet and take turns attacking.", icon: "🚢" }
+];
+
+function renderGamePicker(conversationId) {
+  const choices = PRIVATE_GAME_CATALOG.map(game =>
+    '<button type="button" class="game-picker-option" data-game-choice="' + game.id + '" data-conversation-id="' + conversationId + '">' +
+      '<span class="game-picker-icon">' + game.icon + '</span><span class="game-picker-copy"><strong>' + game.title +
+      '</strong><small>' + game.description + '</small></span><span class="game-picker-arrow">›</span></button>'
+  ).join("");
+  return '<div class="game-picker-backdrop hidden" data-game-picker-backdrop>' +
+    '<section class="game-picker" role="dialog" aria-modal="true" aria-label="Choose a game">' +
+      '<div class="game-picker-heading"><div><p class="eyebrow">STUDENT HUB ARCADE</p><h3>Choose a game</h3></div>' +
+      '<button type="button" class="game-picker-close" data-game-picker-close aria-label="Close game menu">×</button></div>' +
+      '<p class="muted">Pick a game to challenge people in this conversation.</p><div class="game-picker-list">' + choices + '</div>' +
+    '</section></div>';
+}
+
 function renderGameSection(games, scope, targetId) {
   const items = games?.length ? games.map(renderTicTacToeGame).join("")
-    : '<p class="muted">No games yet. Start a challenge!</p>';
+    : '<p class="muted">No Tic-Tac-Toe games yet.</p>';
   const create = currentUser
-    ? '<button type="button" class="small-button" data-create-' + scope + '-game="' + targetId + '">Start ' + (scope === "post" ? "public" : "private") + ' game</button>'
+    ? (scope === "message"
+      ? '<button type="button" class="small-button" data-game-picker-open>＋ Make Game</button>'
+      : '<button type="button" class="small-button" data-create-post-game="' + targetId + '">Start public game</button>')
     : '<span class="meta">Sign in to start a game.</span>';
-  return '<div class="ttt-section"><div class="ttt-section-heading"><strong>🎮 Games</strong>' + create + '</div>' + items + '</div>';
+  return '<div class="ttt-section"><div class="ttt-section-heading"><strong>🎮 Games</strong>' + create + '</div>' +
+    (scope === "message" ? renderGamePicker(targetId) : "") + items + '</div>';
 }
 
 async function loadPrivateGames(conversationId) {
@@ -403,16 +425,46 @@ async function loadPrivateGames(conversationId) {
 }
 
 async function handleTicTacToeAction(event) {
+  const pickerOpen = event.target.closest("[data-game-picker-open]");
+  const pickerClose = event.target.closest("[data-game-picker-close]");
+  const pickerBackdrop = event.target.closest("[data-game-picker-backdrop]");
+  const gameChoice = event.target.closest("[data-game-choice]");
   const createPost = event.target.closest("[data-create-post-game]");
   const createMessage = event.target.closest("[data-create-message-game]");
   const join = event.target.closest("[data-game-join]");
   const move = event.target.closest("[data-game-move]");
   const refresh = event.target.closest("[data-game-refresh]");
-  if (!createPost && !createMessage && !join && !move && !refresh) return;
+
+  if (pickerOpen) {
+    if (!currentUser) return openAuth("login");
+    const picker = pickerOpen.closest(".ttt-section")?.querySelector("[data-game-picker-backdrop]");
+    picker?.classList.remove("hidden");
+    picker?.querySelector("[data-game-choice]")?.focus();
+    return;
+  }
+  if (pickerClose || (pickerBackdrop && event.target === pickerBackdrop)) {
+    pickerBackdrop?.classList.add("hidden");
+    pickerClose?.closest("[data-game-picker-backdrop]")?.classList.add("hidden");
+    return;
+  }
+  if (!createPost && !createMessage && !join && !move && !refresh && !gameChoice) return;
   if (!currentUser) { openAuth("login"); return; }
 
   let result;
-  if (createPost) {
+  if (gameChoice) {
+    const gameId = gameChoice.dataset.gameChoice;
+    const conversationId = gameChoice.dataset.conversationId;
+    gameChoice.closest("[data-game-picker-backdrop]")?.classList.add("hidden");
+    if (gameId === "tic_tac_toe") {
+      result = await supabase.rpc("create_tic_tac_toe_game", {
+        _scope: "message", _post_id: null, _conversation_id: conversationId
+      });
+    } else if (gameId === "battleship") {
+      result = await supabase.rpc("create_battleship_game", { _conversation_id: conversationId });
+    } else {
+      return toast("That game is not available yet.");
+    }
+  } else if (createPost) {
     result = await supabase.rpc("create_tic_tac_toe_game", {
       _scope: "post", _post_id: createPost.dataset.createPostGame, _conversation_id: null
     });
@@ -433,8 +485,10 @@ async function handleTicTacToeAction(event) {
   }
 
   if (result?.error) { toast(result.error.message); return; }
-  toast(createPost || createMessage ? "Game challenge created!" : join ? "You joined the game!" : "Move played!");
-  if (createMessage || (join && join.closest("#chatGames")) || (move && move.closest("#chatGames"))) {
+  toast(gameChoice || createPost || createMessage ? "Game challenge created!" : join ? "You joined the game!" : "Move played!");
+  if (gameChoice?.dataset.gameChoice === "battleship") {
+    await loadBattleshipGames(activeConversationId);
+  } else if (gameChoice || createMessage || (join && join.closest("#chatGames")) || (move && move.closest("#chatGames"))) {
     await loadPrivateGames(activeConversationId);
   }
   if (createPost || (join && !join.closest("#chatGames")) || (move && !move.closest("#chatGames"))) await refreshFeeds();
@@ -581,9 +635,8 @@ async function loadBattleshipGames(conversationId) {
     return '<div class="bs-challenge"><span><strong>Battleship</strong><small>' + escapeHTML(status) + '</small></span>' +
       join + '<button type="button" class="small-button" data-bs-open="' + game.id + '">Open game</button></div>';
   }).join("");
-  const section = '<section class="bs-section"><div class="ttt-section-heading"><strong>🚢 Battleship</strong>' +
-    '<button type="button" class="small-button" data-bs-create="' + conversationId + '">Challenge to Battleship</button></div>' +
-    (rows || '<p class="muted">No Battleship games yet. Challenge someone in this chat!</p>') + '</section>';
+  const section = '<section class="bs-section"><div class="ttt-section-heading"><strong>🚢 Battleship</strong></div>' +
+    (rows || '<p class="muted">No Battleship games yet. Choose it from Make Game to start a challenge.</p>') + '</section>';
   const prior = host.querySelector(".bs-section");
   if (prior) prior.outerHTML = section;
   else host.insertAdjacentHTML("beforeend", section);
