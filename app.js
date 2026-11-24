@@ -317,6 +317,10 @@ async function loadPosts(section) {
   if (gamesError) console.warn("Could not load post games:", gamesError.message);
   const gamesByPost = {};
   (postGames || []).forEach(game => (gamesByPost[game.post_id] ||= []).push(game));
+  const { data: triviaGames, error: triviaError } = await supabase.rpc("list_trivia_games_for_posts", { _post_ids: ids });
+  if (triviaError) console.warn("Could not load Trivia games:", triviaError.message);
+  const triviaByPost = {};
+  (triviaGames || []).forEach(game => (triviaByPost[game.post_id] ||= []).push(game));
   let likes = [], comments = [];
   if (currentUser) {
     const [likesResult, commentsResult] = await Promise.all([
@@ -349,6 +353,7 @@ async function loadPosts(section) {
         </div>
         <div class="comments-area hidden" id="comments-${post.id}"></div>
         ${renderGameSection(gamesByPost[post.id] || [], "post", post.id)}
+        ${renderTriviaGameList(triviaByPost[post.id] || [])}
         ${postActionButtons(post)}
         <button class="ghost report" data-id="${post.id}">Report</button>
       </details>
@@ -382,7 +387,8 @@ function renderTicTacToeGame(game) {
 
 const SOCIAL_GAME_CATALOG = [
   { id: "tic_tac_toe", title: "Tic-Tac-Toe", description: "A quick classic for two players.", icon: "⭕", postAvailable: true, directAvailable: true, groupAvailable: false },
-  { id: "battleship", title: "Battleship", description: "Place your fleet and take turns attacking.", icon: "🚢", postAvailable: false, directAvailable: true, groupAvailable: false }
+  { id: "battleship", title: "Battleship", description: "Place your fleet and take turns attacking.", icon: "🚢", postAvailable: false, directAvailable: true, groupAvailable: false },
+  { id: "trivia", title: "Custom Trivia", description: "Write your own questions and compete with a group.", icon: "🧠", postAvailable: true, directAvailable: true, groupAvailable: true }
 ];
 
 function getAvailableGames(scope, conversationType = "direct") {
@@ -422,7 +428,7 @@ function openGamePicker(scope, targetId, conversationType = "direct") {
 function renderGameSection(games, scope, targetId) {
   const items = games?.length ? games.map(renderTicTacToeGame).join("")
     : '<p class="muted">No games yet. Start one for others to join!</p>';
-  const canCreateHere = scope === "post" || (scope === "message" && activeConversationType !== "group" && getAvailableGames("message", activeConversationType).length > 0);
+  const canCreateHere = scope === "post" || (scope === "message" && getAvailableGames("message", activeConversationType).length > 0);
   const create = !canCreateHere ? "" : currentUser
     ? '<button type="button" class="small-button" data-game-picker-open data-game-scope="' + scope +
       '" data-game-target="' + targetId + '">＋ Make Game</button>'
@@ -440,8 +446,223 @@ async function loadPrivateGames(conversationId) {
     .order("created_at", { ascending: false }).limit(20);
   if (error) { host.textContent = "Could not load games: " + error.message; return; }
   host.innerHTML = renderGameSection(data || [], "message", conversationId);
+  const { data: triviaGames, error: triviaError } = await supabase.rpc("list_trivia_games_for_conversation", { _conversation_id: conversationId });
+  if (triviaError) console.warn("Could not load Trivia games:", triviaError.message);
+  host.insertAdjacentHTML("beforeend", renderTriviaGameList(triviaGames || []));
   await loadBattleshipGames(conversationId);
 }
+
+
+/* ---------------------------------------------------------------------------
+   CUSTOM MULTIPLAYER TRIVIA
+--------------------------------------------------------------------------- */
+let activeTriviaGameId = null;
+let triviaPollTimer = null;
+
+function renderTriviaGameList(games) {
+  if (!games?.length) return "";
+  return '<section class="trivia-list"><div class="ttt-section-heading"><strong>🧠 Trivia games</strong></div>' +
+    games.map(game => {
+      const status = game.status === "waiting" ? "Lobby" : game.status === "active" ? "In progress" : "Completed";
+      const join = game.status === "waiting" && currentUser && currentUser.id !== game.created_by
+        ? '<button type="button" class="small-button" data-trivia-join="' + game.id + '">Join</button>' : "";
+      return '<article class="trivia-card"><div><strong>' + escapeHTML(game.title || "Trivia Challenge") +
+        '</strong><small>' + status + ' · ' + Number(game.player_count || 0) + '/12 players · ' +
+        Number(game.question_count || 0) + ' questions</small></div><div class="trivia-card-actions">' + join +
+        '<button type="button" class="small-button" data-trivia-open="' + game.id + '">Open</button></div></article>';
+    }).join("") + '</section>';
+}
+
+function closeTriviaModal() {
+  if (triviaPollTimer) clearInterval(triviaPollTimer);
+  triviaPollTimer = null;
+  activeTriviaGameId = null;
+  document.getElementById("triviaModal")?.classList.add("hidden");
+}
+
+function openTriviaCreateDialog(scope, targetId) {
+  let modal = document.getElementById("triviaModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "triviaModal";
+    modal.className = "trivia-modal hidden";
+    document.body.appendChild(modal);
+  }
+  if (triviaPollTimer) clearInterval(triviaPollTimer);
+  activeTriviaGameId = null;
+  modal.innerHTML = '<section class="trivia-dialog" role="dialog" aria-modal="true" aria-label="Create Trivia game">' +
+    '<div class="trivia-dialog-heading"><div><p class="eyebrow">STUDENT HUB ARCADE</p><h3>Create Trivia</h3></div>' +
+    '<button type="button" class="game-picker-close" data-trivia-close aria-label="Close">×</button></div>' +
+    '<p class="muted">You will be the host and the only person who can add or remove questions.</p>' +
+    '<form data-trivia-create data-scope="' + scope + '" data-target="' + targetId + '">' +
+    '<label>Game title<input name="title" maxlength="60" required value="Trivia Challenge"></label>' +
+    '<button class="primary" type="submit">Create game</button></form></section>';
+  modal.classList.remove("hidden");
+}
+
+async function openTriviaGame(gameId) {
+  let modal = document.getElementById("triviaModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "triviaModal";
+    modal.className = "trivia-modal hidden";
+    document.body.appendChild(modal);
+  }
+  if (triviaPollTimer) clearInterval(triviaPollTimer);
+  activeTriviaGameId = gameId;
+  modal.innerHTML = '<section class="trivia-dialog"><p class="muted">Loading Trivia...</p></section>';
+  modal.classList.remove("hidden");
+  await refreshTriviaGame();
+  triviaPollTimer = setInterval(() => {
+    if (activeTriviaGameId) refreshTriviaGame();
+  }, 4000);
+}
+
+async function refreshTriviaGame() {
+  if (!activeTriviaGameId) return;
+  const { data, error } = await supabase.rpc("get_trivia_game", { _game_id: activeTriviaGameId });
+  if (error) { toast(error.message); return; }
+  const modal = document.getElementById("triviaModal");
+  if (!modal || modal.classList.contains("hidden")) return;
+  const game = data;
+  const players = game.players || [];
+  const playerRows = players.map((player,index) =>
+    '<div class="trivia-player"><span>' + (index+1) + '. ' + escapeHTML(player.name) +
+    (player.is_creator ? ' <span class="meta">(host)</span>' : '') + '</span><strong>' + player.score + ' pts</strong></div>'
+  ).join("");
+  let body = "";
+  if (game.status === "waiting") {
+    const questions = (game.questions || []).map(q =>
+      '<div class="trivia-question-row"><span><strong>Q' + q.position + '.</strong> ' + escapeHTML(q.prompt) +
+      '<small>' + q.choices.length + ' choices</small></span>' +
+      (game.is_creator ? '<button type="button" class="text-button" data-trivia-remove="' + q.id + '">Remove</button>' : '') + '</div>'
+    ).join("") || '<p class="muted">No questions yet. Add your first question below.</p>';
+    const isPlayer = players.some(p => p.user_id === currentUser?.id);
+    body = '<div class="trivia-lobby-stats"><span>👥 ' + players.length + '/12 players</span><span>❓ ' + game.question_count + ' questions</span><span>⏱ 15 sec each</span></div>' +
+      '<h4>Players</h4><div class="trivia-player-list">' + playerRows + '</div>' +
+      (game.is_creator
+        ? '<h4>Your questions</h4><div class="trivia-question-list">' + questions + '</div>' +
+          '<form data-trivia-add-question data-game="' + game.id + '" class="trivia-add-form">' +
+          '<h4>Add a question</h4><label>Question<textarea name="prompt" maxlength="300" required placeholder="Write your question"></textarea></label>' +
+          '<div class="trivia-choice-grid">' + [0,1,2,3].map(i => '<label class="trivia-choice-label"><span>Answer ' + (i+1) + (i<2?' *':' (optional)') + '</span><input name="choice' + i + '" maxlength="120" ' + (i<2?'required':'') + '></label>').join("") + '</div>' +
+          '<label>Correct answer<select name="correct" required><option value="0">Answer 1</option><option value="1">Answer 2</option><option value="2">Answer 3</option><option value="3">Answer 4</option></select></label>' +
+          '<button class="secondary" type="submit">＋ Add question</button></form>' +
+          '<button type="button" class="primary" data-trivia-start="' + game.id + '"' + (game.question_count<1 || players.length<2?' disabled':'') + '>Start game</button>' +
+          '<p class="notice">You need at least one question and two players to start.</p>'
+        : (isPlayer ? '<p class="notice">You joined. Waiting for the host to start the game.</p>' :
+          '<button type="button" class="primary" data-trivia-join="' + game.id + '">Join game</button>'));
+  } else if (game.status === "active") {
+    const question = game.question;
+    body = '<div class="trivia-lobby-stats"><span>Question ' + game.current_question + ' of ' + game.question_count + '</span><span>⏱ 15-second round</span></div>' +
+      (question ? '<div class="trivia-current-question"><h3>' + escapeHTML(question.prompt) + '</h3>' +
+        (game.has_answered ? '<p class="notice">Your answer is locked in. Waiting for the next question...</p>' :
+          '<div class="trivia-answer-grid">' + question.choices.map((choice,index) =>
+            '<button type="button" class="trivia-answer" data-trivia-answer="' + index + '" data-game="' + game.id + '">' + escapeHTML(choice) + '</button>'
+          ).join("") + '</div>') + '</div>' : '<p class="muted">Loading question...</p>') +
+      (game.is_creator ? '<button type="button" class="primary" data-trivia-advance="' + game.id + '">Next question / Finish</button><p class="notice">You can advance when everyone has answered or the timer runs out.</p>' : '') +
+      '<h4>Live leaderboard</h4><div class="trivia-player-list">' + playerRows + '</div>';
+  } else {
+    body = '<div class="trivia-finished"><h3>🏆 Trivia complete!</h3><p>Final results</p></div>' +
+      '<div class="trivia-player-list">' + playerRows + '</div>';
+  }
+  modal.innerHTML = '<section class="trivia-dialog" role="dialog" aria-modal="true" aria-label="Trivia game">' +
+    '<div class="trivia-dialog-heading"><div><p class="eyebrow">STUDENT HUB ARCADE</p><h3>' + escapeHTML(game.title) + '</h3></div>' +
+    '<button type="button" class="game-picker-close" data-trivia-close aria-label="Close">×</button></div>' +
+    body + '<div class="trivia-dialog-footer"><button type="button" class="text-button" data-trivia-refresh>Refresh</button></div></section>';
+}
+
+document.addEventListener("click", async event => {
+  const open = event.target.closest("[data-trivia-open]");
+  const join = event.target.closest("[data-trivia-join]");
+  const close = event.target.closest("[data-trivia-close]");
+  const start = event.target.closest("[data-trivia-start]");
+  const answer = event.target.closest("[data-trivia-answer]");
+  const advance = event.target.closest("[data-trivia-advance]");
+  const remove = event.target.closest("[data-trivia-remove]");
+  const refresh = event.target.closest("[data-trivia-refresh]");
+  const createChoice = event.target.closest("[data-game-choice='trivia']");
+  if (createChoice) {
+    const scope = createChoice.dataset.gameScope || "message";
+    const targetId = createChoice.dataset.gameTarget || activeConversationId;
+    document.getElementById("globalGamePicker")?.classList.add("hidden");
+    openTriviaCreateDialog(scope,targetId);
+    return;
+  }
+  if (close) { closeTriviaModal(); return; }
+  if (open) { await openTriviaGame(open.dataset.triviaOpen); return; }
+  if (join) {
+    const { error } = await supabase.rpc("join_trivia_game", { _game_id: join.dataset.triviaJoin });
+    if (error) { toast(error.message); return; }
+    toast("You joined the Trivia game!");
+    await openTriviaGame(join.dataset.triviaJoin);
+    return;
+  }
+  if (start) {
+    const { error } = await supabase.rpc("start_trivia_game", { _game_id: start.dataset.triviaStart });
+    if (error) { toast(error.message); return; }
+    await refreshTriviaGame();
+    return;
+  }
+  if (answer) {
+    const { data, error } = await supabase.rpc("submit_trivia_answer", {
+      _game_id: answer.dataset.game, _choice_index: Number(answer.dataset.triviaAnswer)
+    });
+    if (error) { toast(error.message); return; }
+    toast(data ? "Correct! +100 points." : "Not quite. Better luck on the next one!");
+    await refreshTriviaGame();
+    return;
+  }
+  if (advance) {
+    const { error } = await supabase.rpc("advance_trivia_question", { _game_id: advance.dataset.triviaAdvance });
+    if (error) { toast(error.message); return; }
+    await refreshTriviaGame();
+    return;
+  }
+  if (remove) {
+    const { error } = await supabase.rpc("remove_trivia_question", { _question_id: remove.dataset.triviaRemove });
+    if (error) { toast(error.message); return; }
+    await refreshTriviaGame();
+    return;
+  }
+  if (refresh) await refreshTriviaGame();
+});
+
+document.addEventListener("submit", async event => {
+  const createForm = event.target.closest("[data-trivia-create]");
+  const addForm = event.target.closest("[data-trivia-add-question]");
+  if (!createForm && !addForm) return;
+  event.preventDefault();
+  if (!currentUser) { openAuth("login"); return; }
+  if (createForm) {
+    const scope = createForm.dataset.scope;
+    const targetId = createForm.dataset.target;
+    const title = new FormData(createForm).get("title");
+    const { data, error } = await supabase.rpc("create_trivia_game", {
+      _scope: scope, _post_id: scope === "post" ? targetId : null,
+      _conversation_id: scope === "message" ? targetId : null, _title: title
+    });
+    if (error) { toast(error.message); return; }
+    toast("Trivia game created! Add your questions.");
+    await openTriviaGame(data);
+    if (scope === "post") await refreshFeeds();
+    else await loadPrivateGames(targetId);
+    return;
+  }
+  const formData = new FormData(addForm);
+  const prompt = String(formData.get("prompt") || "").trim();
+  const rawChoices = [0,1,2,3].map(i => String(formData.get("choice"+i) || "").trim());
+  const rawCorrect = Number(formData.get("correct"));
+  if (!rawChoices[rawCorrect]) { toast("Choose a correct answer that has text."); return; }
+  const choices = rawChoices.filter(Boolean);
+  const correctIndex = rawChoices.slice(0,rawCorrect+1).filter(Boolean).length - 1;
+  if (choices.length < 2) { toast("Add at least two answer choices."); return; }
+  const { error } = await supabase.rpc("add_trivia_question", {
+    _game_id: addForm.dataset.game, _prompt: prompt, _choices: choices, _correct_index: correctIndex
+  });
+  if (error) { toast(error.message); return; }
+  toast("Question added!");
+  await refreshTriviaGame();
+});
 
 async function handleTicTacToeAction(event) {
   const pickerOpen = event.target.closest("[data-game-picker-open]");
@@ -477,6 +698,7 @@ async function handleTicTacToeAction(event) {
     const targetId = gameChoice.dataset.gameTarget || activeConversationId;
     document.getElementById("globalGamePicker")?.classList.add("hidden");
     gameChoice.closest("[data-game-picker-backdrop]")?.classList.add("hidden");
+    if (gameId === "trivia") return;
     if (gameId === "tic_tac_toe") {
       result = await supabase.rpc("create_tic_tac_toe_game", {
         _scope: scope, _post_id: scope === "post" ? targetId : null,
