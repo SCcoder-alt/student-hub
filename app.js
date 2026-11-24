@@ -248,6 +248,18 @@ async function refreshFeeds() {
   await Promise.all([loadPosts("education"), loadPosts("relaxation")]);
 }
 
+// Filter the already-loaded feed cards without making extra database requests.
+document.querySelectorAll("[data-post-search]").forEach(input => {
+  input.addEventListener("input", () => {
+    const term = input.value.trim().toLocaleLowerCase();
+    const feed = document.getElementById(input.dataset.postSearch);
+    if (!feed) return;
+    feed.querySelectorAll("[data-post-card]").forEach(card => {
+      card.hidden = term !== "" && !card.textContent.toLocaleLowerCase().includes(term);
+    });
+  });
+});
+
 async function runPostRpc(action, postId, pinned) {
   const rpcByAction = {
     pin: ["pin_post", { _post_id: postId, _pinned: pinned }],
@@ -327,16 +339,19 @@ async function loadPosts(section) {
       ${post.is_pinned ? '<div class="pinned-label">📌 Pinned</div>' : ""}
       <div class="meta"><button class="profile-link" data-profile-id="${post.author_id}">${escapeHTML(post.author_name || "Student")}</button> • ${new Date(post.created_at).toLocaleDateString()}</div>
       <h3>${escapeHTML(post.title)}</h3>
-      <p>${escapeHTML(post.content)}</p>
-      ${imageMarkup}
-      <div class="social-actions">
-        <button class="small-button ${likedByMe.has(post.id) ? "liked" : ""}" data-like-post="${post.id}" ${currentUser ? "" : 'disabled title="Sign in to like posts"'}>${likedByMe.has(post.id) ? "♥ Liked" : "♡ Like"} (${likeCounts[post.id] || 0})</button>
-        <button class="small-button" data-open-comments="${post.id}">Comments (${commentCounts[post.id] || 0})</button>
-      </div>
-      <div class="comments-area hidden" id="comments-${post.id}"></div>
-      ${renderGameSection(gamesByPost[post.id] || [], "post", post.id)}
-      ${postActionButtons(post)}
-      <button class="ghost report" data-id="${post.id}">Report</button>
+      <p class="post-preview">${escapeHTML(post.content.length > 220 ? post.content.slice(0, 220).trimEnd() + "…" : post.content)}</p>
+      <details class="post-expand">
+        <summary>Open post, comments & games</summary>
+        <div class="post-full-content"><p>${escapeHTML(post.content)}</p>${imageMarkup}</div>
+        <div class="social-actions">
+          <button class="small-button ${likedByMe.has(post.id) ? "liked" : ""}" data-like-post="${post.id}" ${currentUser ? "" : 'disabled title="Sign in to like posts"'}>${likedByMe.has(post.id) ? "♥ Liked" : "♡ Like"} (${likeCounts[post.id] || 0})</button>
+          <button class="small-button" data-open-comments="${post.id}">Comments (${commentCounts[post.id] || 0})</button>
+        </div>
+        <div class="comments-area hidden" id="comments-${post.id}"></div>
+        ${renderGameSection(gamesByPost[post.id] || [], "post", post.id)}
+        ${postActionButtons(post)}
+        <button class="ghost report" data-id="${post.id}">Report</button>
+      </details>
     </article>
   `; }).join("");
 }
@@ -1227,6 +1242,7 @@ async function openConversation(conversationId, otherUserId) {
     .order("created_at", { ascending: true }).limit(200);
   if (error) { host.textContent = `Could not load messages: ${error.message}`; return; }
   host.innerHTML = data?.length ? data.map(message => `<article class="chat-message ${message.sender_id === currentUser.id ? "mine" : "theirs"}"><p>${escapeHTML(message.body)}</p><span class="meta">${new Date(message.created_at).toLocaleString()}</span><button class="text-button" data-report-message="${message.id}">Report</button></article>`).join("") : '<p class="muted">This conversation is ready. Keep messages respectful.</p>';
+  host.scrollTop = host.scrollHeight;
   $("#chatComposer").classList.remove("hidden");
   $("#blockStudentBtn").classList.toggle("hidden", activeConversationType === "group");
   $("#leaveGroupBtn").classList.toggle("hidden", activeConversationType !== "group");
