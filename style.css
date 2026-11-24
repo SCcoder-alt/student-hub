@@ -172,3 +172,27 @@ footer{text-align:center;padding:35px;color:#71809a}
  .feed-scrollbox{max-height:62vh;padding-left:10px;padding-right:10px}
  .feed-browser .post-search-label{margin-left:10px;margin-right:10px}
 }
+
+
+/* Classic Battleship */
+.bs-section{margin:14px 0;padding:13px;border:1px solid #dce5f2;border-radius:13px;background:#f7faff}
+.bs-challenge{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 0;border-top:1px solid #e5ebf4}
+.bs-challenge span{display:grid;gap:3px}
+.bs-challenge small{color:#64748b}
+.bs-game{margin-top:12px;padding:14px;border:1px solid #dce5f2;border-radius:13px;background:#fff}
+.bs-game-view{margin-top:12px}
+.bs-placement>p{color:#526078}
+.bs-controls{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}
+.bs-boards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:14px}
+.bs-boards section{min-width:0}
+.bs-boards h4{margin:4px 0 9px;text-align:center}
+.bs-grid{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px;width:min(100%,390px);margin:12px auto}
+.bs-cell{aspect-ratio:1;min-width:0;padding:0;border:1px solid #cbd5e1;border-radius:4px;background:#f3f7fc;color:#28415f;font-size:clamp(.55rem,1.8vw,.9rem);font-weight:800;cursor:pointer}
+.bs-cell:not(:disabled):hover{background:#dce8fa}
+.bs-cell:disabled{cursor:default;opacity:1}
+.bs-cell.bs-ship{background:#b8c9df;border-color:#8198b7;color:#203956}
+.bs-cell.bs-hit{background:#f9c8c5;border-color:#dc7770;color:#922d27}
+.bs-cell.bs-miss{background:#e7edf5;color:#718096}
+.bs-footer{display:flex;justify-content:flex-end;margin-top:8px}
+.bs-game .primary:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:680px){.bs-boards{grid-template-columns:1fr}.bs-grid{width:min(100%,340px);gap:2px}.bs-cell{border-radius:3px}}
