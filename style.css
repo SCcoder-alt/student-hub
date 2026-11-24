@@ -154,3 +154,21 @@ footer{text-align:center;padding:35px;color:#71809a}
 .post-expand>summary::before{order:2;margin-left:auto}
 .post-expand[open] .post-full-content{padding-top:8px}
 @media(max-width:760px){.post-expand>summary{min-height:44px}}
+
+
+/* Collapsible section-level post browsers with their own scroll areas. */
+.feed-browser{margin-top:14px;border:1px solid #e1e8f3;border-radius:14px;background:#fff;overflow:hidden}
+.feed-browser>summary{display:flex;align-items:center;gap:10px;padding:13px 15px;cursor:pointer;list-style:none;font-weight:750;color:#294fc3;background:#f5f8ff}
+.feed-browser>summary::-webkit-details-marker{display:none}
+.feed-browser>summary::before{content:"＋";font-weight:900}
+.feed-browser[open]>summary::before{content:"−"}
+.feed-browser>summary:hover{background:#eaf0ff}
+.feed-browser>summary:focus-visible{outline:3px solid #91adff;outline-offset:-3px}
+.feed-browser .post-search-label{margin:14px 15px 10px;max-width:none}
+.feed-scrollbox{max-height: min(68vh, 620px);overflow-y:auto;overscroll-behavior:contain;padding:0 15px 15px;scrollbar-gutter:stable}
+.feed-scrollbox .feed{display:grid;gap:14px}
+.feed-scrollbox .post{min-width:0}
+@media(max-width:760px){
+ .feed-scrollbox{max-height:62vh;padding-left:10px;padding-right:10px}
+ .feed-browser .post-search-label{margin-left:10px;margin-right:10px}
+}
