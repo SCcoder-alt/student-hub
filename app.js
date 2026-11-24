@@ -454,6 +454,7 @@ const BATTLESHIP_FLEET = [
 ];
 const battleshipDrafts = {};
 let openBattleshipId = null;
+let battleshipPollTimer = null;
 
 function bsCellsForFleet(fleet) {
   return (fleet || []).flatMap(ship => ship.cells || []);
@@ -544,6 +545,17 @@ async function openBattleshipGame(gameId) {
   view.className = "bs-game-view";
   view.innerHTML = renderBattleshipState(data);
   host.appendChild(view);
+  if (!battleshipPollTimer) {
+    battleshipPollTimer = setInterval(async () => {
+      if (!openBattleshipId || !activeConversationId) return;
+      const { data: latest, error: refreshError } = await supabase.rpc("get_battleship_state", { _game_id: openBattleshipId });
+      if (!refreshError && latest) {
+        const currentView = $("#chatGames").querySelector(".bs-game-view");
+        if (currentView) currentView.innerHTML = renderBattleshipState(latest);
+        await loadBattleshipGames(activeConversationId);
+      }
+    }, 5000);
+  }
 }
 async function loadBattleshipGames(conversationId) {
   const host = $("#chatGames");
@@ -1441,7 +1453,11 @@ async function loadMessagesPanel() {
 }
 
 async function openConversation(conversationId, otherUserId) {
-  if (activeConversationId !== conversationId) openBattleshipId = null;
+  if (activeConversationId !== conversationId) {
+    openBattleshipId = null;
+    if (battleshipPollTimer) clearInterval(battleshipPollTimer);
+    battleshipPollTimer = null;
+  }
   activeConversationId = conversationId;
   activeChatOtherUserId = otherUserId || null;
   const host = $("#chatMessages");
