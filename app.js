@@ -492,6 +492,10 @@ function openTriviaCreateDialog(scope, targetId) {
     modal.className = "trivia-modal hidden";
     document.body.appendChild(modal);
   }
+  // Ignore duplicate open requests while the create form is already on screen.
+  // This prevents background UI events from wiping the title field or scroll position.
+  if (!modal.classList.contains("hidden") && modal.querySelector("[data-trivia-create]")) return;
+
   if (triviaPollTimer) clearInterval(triviaPollTimer);
   triviaPollTimer = null;
   activeTriviaGameId = null;
