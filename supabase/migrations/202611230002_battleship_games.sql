@@ -188,7 +188,10 @@ begin
       'id',g.id,'created_by',g.created_by,'player_one',g.player_one,'player_two',g.player_two,
       'status',g.status,'current_turn',g.current_turn,'winner',g.winner,'created_at',g.created_at
     ) order by g.created_at desc)
-    from public.battleship_games g where g.conversation_id=_conversation_id
+    from public.battleship_games g
+    where g.conversation_id=_conversation_id
+      and (g.player_one=auth.uid() or g.player_two=auth.uid()
+        or (g.status='waiting' and g.player_one <> auth.uid()))
   ),'[]'::jsonb);
 end;
 $$;
