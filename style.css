@@ -215,3 +215,39 @@ footer{text-align:center;padding:35px;color:#71809a}
 .game-picker-copy small{color:#64748b;line-height:1.35}
 .game-picker-arrow{margin-left:auto;color:#64748b;font-size:1.5rem}
 @media(max-width:520px){.game-picker{padding:18px}.game-picker-backdrop{padding:12px}}
+
+
+/* Custom multiplayer Trivia */
+.trivia-list{margin:12px 0;padding:13px;border:1px solid #dce5f2;border-radius:13px;background:#f8faff}
+.trivia-card{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #e4eaf3}
+.trivia-card>div:first-child{display:grid;gap:4px;min-width:0}
+.trivia-card small{color:#71809a}
+.trivia-card-actions{display:flex;gap:7px;flex-wrap:wrap}
+.trivia-modal{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:rgba(15,23,42,.62)}
+.trivia-dialog{width:min(680px,100%);max-height:min(88vh,820px);overflow-y:auto;overscroll-behavior:contain;padding:22px;background:#fff;border:1px solid #dfe6f2;border-radius:20px;box-shadow:0 24px 80px #0f172a55}
+.trivia-dialog-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:12px}
+.trivia-dialog-heading h3{margin:3px 0;font-size:1.4rem}
+.trivia-dialog-heading .eyebrow{margin:0}
+.trivia-dialog h4{margin:18px 0 8px}
+.trivia-lobby-stats{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0;padding:11px;border-radius:11px;background:#f2f6ff;color:#425575;font-size:.88rem;font-weight:700}
+.trivia-player-list{display:grid;gap:7px;margin:8px 0 16px}
+.trivia-player{display:flex;justify-content:space-between;gap:12px;padding:9px 11px;border:1px solid #e5eaf2;border-radius:9px;background:#fbfcff}
+.trivia-question-list{display:grid;gap:8px}
+.trivia-question-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px;border:1px solid #e5eaf2;border-radius:10px}
+.trivia-question-row>span{display:grid;gap:4px}
+.trivia-question-row small{color:#71809a}
+.trivia-add-form{margin:18px 0;padding:15px;border:1px solid #e1e8f2;border-radius:13px;background:#f8faff}
+.trivia-add-form textarea{min-height:78px}
+.trivia-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+.trivia-choice-label{margin:8px 0}
+.trivia-choice-label span{display:block;font-size:.86rem}
+.trivia-choice-label input{margin-top:5px}
+.trivia-add-form select{width:100%;padding:11px;border:1px solid #ccd5e3;border-radius:10px;font:inherit;background:#fff}
+.trivia-current-question{margin:18px 0;padding:18px;border:1px solid #e1e8f2;border-radius:14px;background:#f8faff}
+.trivia-current-question h3{font-size:1.25rem;line-height:1.45}
+.trivia-answer-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0}
+.trivia-answer{min-height:56px;padding:12px;border:1px solid #cbd7ea;border-radius:11px;background:#fff;color:#20304b;font:inherit;font-weight:700;cursor:pointer;text-align:left}
+.trivia-answer:hover{border-color:#8ca8ed;background:#edf3ff}
+.trivia-finished{text-align:center;padding:18px 8px}
+.trivia-dialog-footer{display:flex;justify-content:flex-end;margin-top:12px}
+@media(max-width:560px){.trivia-dialog{padding:16px}.trivia-choice-grid,.trivia-answer-grid{grid-template-columns:1fr}.trivia-card{align-items:flex-start;flex-direction:column}.trivia-card-actions{width:100%}.trivia-card-actions button{flex:1}}
