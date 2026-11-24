@@ -36,7 +36,7 @@
     <div class="control-group"><button class="touch" data-key="ArrowLeft">◀</button><button class="touch" data-key="ArrowRight">▶</button></div>
     <div class="control-group"><button class="touch" data-key="ArrowDown">▼</button><button class="touch" data-key="ArrowUp">▲</button></div>
   </div>
-  <div id="message">WASD / arrow keys to drive · Space to drift</div>
+  <div id="message">W / ↑ accelerate · S / ↓ reverse · A / ← D / → steer · Space drift</div>
 
   <section class="panel" id="menu">
     <div class="dialog">
@@ -50,7 +50,7 @@
       <div class="row"><button class="btn primary" id="createRoomBtn">Create room</button><input class="field" id="roomInput" maxlength="6" placeholder="ROOM CODE" aria-label="Room code"></div>
       <div class="row"><button class="btn" id="joinRoomBtn">Join room</button></div>
       <p class="note" id="roomStatus" aria-live="polite"></p>
-      <p class="note">Controls: W / ↑ accelerate · S / ↓ brake · A / ← and D / → steer · Space drift.</p>
+      <p class="note">Controls: W / ↑ accelerate · S / ↓ reverse / brake · A / ← and D / → steer · Space drift.</p>
     </div>
   </section>
   <section class="panel hidden" id="lobby">
@@ -289,13 +289,19 @@ function update(dt,now){
       elapsed=now-raceStartedAt;
       const forward=keys.has("w")||keys.has("arrowup"),back=keys.has("s")||keys.has("arrowdown");
       const left=keys.has("a")||keys.has("arrowleft"),right=keys.has("d")||keys.has("arrowright"),drift=keys.has(" ");
-      if(forward)speed=Math.min(35,speed+22*dt);else speed=Math.max(0,speed-5*dt);
-      if(back)speed=Math.max(-10,speed-30*dt);
+      // Forward and reverse use separate acceleration rates. Holding reverse
+      // first slows the kart, then gradually moves it backward.
+      if(forward)speed=Math.min(35,speed+18*dt);
+      else if(back)speed=Math.max(-12,speed-24*dt);
+      else if(speed>0)speed=Math.max(0,speed-7*dt);
+      else if(speed<0)speed=Math.min(0,speed+7*dt);
+
+      // Smooth steering input and cap the turning rate to prevent sudden spins.
       const steerInput=(right?1:0)-(left?1:0);
-      const steerStrength=Math.min(1,Math.abs(speed)/8);
-      steer+=(steerInput*2.15*steerStrength-steer*7*dt)*Math.min(1,dt*8);
-      heading+=steer*dt*(drift?1.35:1)*Math.sign(speed||1);
-      if(!forward&&!back)speed*=Math.pow(.985,dt*60);
+      steer+=(steerInput-steer)*Math.min(1,dt*5);
+      const speedFactor=0.35+0.65*Math.min(1,Math.abs(speed)/35);
+      const turnRate=drift?1.05:0.72;
+      heading+=steer*turnRate*speedFactor*dt*Math.sign(speed||1);
       const direction=new THREE.Vector3(Math.sin(heading),0,Math.cos(heading));
       kart.position.addScaledVector(direction,speed*dt);
       const nearest=closestTrackT(kart.position),t=nearest.t,center=centerAt(t),side=sideAt(t);
