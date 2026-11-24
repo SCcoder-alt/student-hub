@@ -185,7 +185,15 @@ const remoteColors=[0xf04e4e,0x9b59d0,0xff9f43,0x1abc9c,0xe84393];
 function closestTrackT(pos){
   let best=Infinity,bestT=0;
   for(let i=0;i<trackSamples;i++){const p=trackPoints[i],d=pos.distanceToSquared(p);if(d<best){best=d;bestT=i/trackSamples;}}
-  return {t:bestT,distance:Math.sqrt(best)};
+  // Refine the nearest point between samples so collision correction doesn't snap the kart.
+  let lo=bestT-1/trackSamples,hi=bestT+1/trackSamples;
+  for(let i=0;i<14;i++){
+    const a=lo+(hi-lo)/3,b=hi-(hi-lo)/3;
+    if(pos.distanceToSquared(centerAt(a))<pos.distanceToSquared(centerAt(b)))hi=b;else lo=a;
+  }
+  const t=((lo+hi)/2+1)%1;
+  const center=centerAt(t);
+  return {t,distance:Math.sqrt(pos.distanceToSquared(center))};
 }
 function createRemote(id,name){
   const obj=makeKart(remoteColors[remotePlayers.size%remoteColors.length],name||"Racer");
@@ -300,10 +308,14 @@ function update(dt,now){
       kart.position.addScaledVector(direction,speed*dt);
       const nearest=closestTrackT(kart.position),t=nearest.t,center=centerAt(t),side=sideAt(t);
       const lateral=(kart.position.x-center.x)*side.x+(kart.position.z-center.z)*side.z;
-      if(Math.abs(lateral)>roadHalfWidth-1){
-        const clamped=Math.sign(lateral)*(roadHalfWidth-1);
-        kart.position.x=center.x+side.x*clamped;kart.position.z=center.z+side.z*clamped;
-        speed*=.82;
+      const safeRoadHalfWidth=roadHalfWidth-1.7;
+      if(Math.abs(lateral)>safeRoadHalfWidth){
+        const clamped=Math.sign(lateral)*safeRoadHalfWidth;
+        // Correct only the sideways component; preserve forward progress along the track.
+        const correction=lateral-clamped;
+        kart.position.x-=side.x*correction;
+        kart.position.z-=side.z*correction;
+        speed*=.72;
       }
       if(previousTrackT>.88&&t<.12&&speed>2){lap++;$("lap").textContent=Math.min(lap+1,maxLaps)+" / "+maxLaps;if(lap>=maxLaps){finished=true;raceRunning=false;$("finishTime").textContent="Your time: "+formatTime(elapsed);setPanel("finish");}}
       previousTrackT=t;
