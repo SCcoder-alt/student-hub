@@ -126,6 +126,7 @@ as $$
 declare v_user uuid:=auth.uid(); v_game public.trivia_games%rowtype; v_position integer; v_id uuid; v_choice text;
 begin
   if v_user is null then raise exception 'Sign in to add questions.'; end if;
+  if public.is_current_user_banned() then raise exception 'This account is suspended.'; end if;
   select * into v_game from public.trivia_games where id=_game_id for update;
   if not found then raise exception 'Game not found.'; end if;
   if v_game.created_by<>v_user then raise exception 'Only the game creator can add questions.'; end if;
@@ -150,6 +151,8 @@ language plpgsql security definer set search_path=''
 as $$
 declare v_game public.trivia_games%rowtype;
 begin
+  if auth.uid() is null then raise exception 'Sign in to manage questions.'; end if;
+  if public.is_current_user_banned() then raise exception 'This account is suspended.'; end if;
   select g.* into v_game from public.trivia_games g join public.trivia_questions q on q.game_id=g.id where q.id=_question_id for update of g;
   if not found then raise exception 'Question not found.'; end if;
   if v_game.created_by<>auth.uid() then raise exception 'Only the game creator can remove questions.'; end if;
@@ -169,6 +172,8 @@ language plpgsql security definer set search_path=''
 as $$
 declare v_game public.trivia_games%rowtype; v_count integer; v_players integer;
 begin
+  if auth.uid() is null then raise exception 'Sign in to start the game.'; end if;
+  if public.is_current_user_banned() then raise exception 'This account is suspended.'; end if;
   select * into v_game from public.trivia_games where id=_game_id for update;
   if not found then raise exception 'Game not found.'; end if;
   if v_game.created_by<>auth.uid() then raise exception 'Only the creator can start this game.'; end if;
@@ -212,6 +217,8 @@ language plpgsql security definer set search_path=''
 as $$
 declare v_game public.trivia_games%rowtype; v_total integer; v_answered integer; v_players integer;
 begin
+  if auth.uid() is null then raise exception 'Sign in to advance the game.'; end if;
+  if public.is_current_user_banned() then raise exception 'This account is suspended.'; end if;
   select * into v_game from public.trivia_games where id=_game_id for update;
   if not found or v_game.status<>'active' then raise exception 'This game is not active.'; end if;
   if v_game.created_by<>auth.uid() then raise exception 'Only the creator can advance the game.'; end if;
