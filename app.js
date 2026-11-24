@@ -380,58 +380,49 @@ function renderTicTacToeGame(game) {
     '<button type="button" class="text-button" data-game-refresh="' + game.id + '">Refresh</button></div></article>';
 }
 
-const PRIVATE_GAME_CATALOG = [
-  { id: "tic_tac_toe", title: "Tic-Tac-Toe", description: "A quick classic for two players.", icon: "⭕" },
-  { id: "battleship", title: "Battleship", description: "Place your fleet and take turns attacking.", icon: "🚢" }
+const SOCIAL_GAME_CATALOG = [
+  { id: "tic_tac_toe", title: "Tic-Tac-Toe", description: "A quick classic for two players.", icon: "⭕", postAvailable: true },
+  { id: "battleship", title: "Battleship", description: "Place your fleet and take turns attacking.", icon: "🚢", postAvailable: false }
 ];
 
-function openPrivateGamePicker(conversationId) {
-  if (!conversationId) return toast("Open a conversation first.");
+function openGamePicker(scope, targetId) {
+  if (!targetId) return toast(scope === "message" ? "Open a conversation first." : "Open a post first.");
   let overlay = document.getElementById("globalGamePicker");
   if (!overlay) {
     overlay = document.createElement("div");
     overlay.id = "globalGamePicker";
-    overlay.className = "game-picker-backdrop";
+    overlay.className = "game-picker-backdrop hidden";
     overlay.setAttribute("data-game-picker-backdrop", "");
     document.body.appendChild(overlay);
   }
-  const choices = PRIVATE_GAME_CATALOG.map(game =>
-    '<button type="button" class="game-picker-option" data-game-choice="' + game.id + '" data-conversation-id="' + conversationId + '">' +
+  const choices = SOCIAL_GAME_CATALOG.map(game => {
+    const available = scope === "message" || game.postAvailable;
+    return '<button type="button" class="game-picker-option" data-game-choice="' + game.id +
+      '" data-game-scope="' + scope + '" data-game-target="' + targetId + '"' +
+      (!available ? ' disabled title="This game is currently available in DMs only."' : "") + '>' +
       '<span class="game-picker-icon">' + game.icon + '</span><span class="game-picker-copy"><strong>' + game.title +
-      '</strong><small>' + game.description + '</small></span><span class="game-picker-arrow">›</span></button>'
-  ).join("");
+      '</strong><small>' + (available ? game.description : "Currently available in DMs only") +
+      '</small></span><span class="game-picker-arrow">›</span></button>';
+  }).join("");
+  const description = scope === "post"
+    ? "Choose a game to add directly to this post."
+    : "Pick a game to challenge people in this conversation.";
   overlay.innerHTML = '<section class="game-picker" role="dialog" aria-modal="true" aria-label="Choose a game">' +
     '<div class="game-picker-heading"><div><p class="eyebrow">STUDENT HUB ARCADE</p><h3>Choose a game</h3></div>' +
     '<button type="button" class="game-picker-close" data-game-picker-close aria-label="Close game menu">×</button></div>' +
-    '<p class="muted">Pick a game to challenge people in this conversation.</p><div class="game-picker-list">' + choices + '</div></section>';
+    '<p class="muted">' + description + '</p><div class="game-picker-list">' + choices + '</div></section>';
   overlay.classList.remove("hidden");
-  overlay.querySelector("[data-game-choice]")?.focus();
-}
-
-function renderGamePicker(conversationId) {
-  const choices = PRIVATE_GAME_CATALOG.map(game =>
-    '<button type="button" class="game-picker-option" data-game-choice="' + game.id + '" data-conversation-id="' + conversationId + '">' +
-      '<span class="game-picker-icon">' + game.icon + '</span><span class="game-picker-copy"><strong>' + game.title +
-      '</strong><small>' + game.description + '</small></span><span class="game-picker-arrow">›</span></button>'
-  ).join("");
-  return '<div class="game-picker-backdrop hidden" data-game-picker-backdrop>' +
-    '<section class="game-picker" role="dialog" aria-modal="true" aria-label="Choose a game">' +
-      '<div class="game-picker-heading"><div><p class="eyebrow">STUDENT HUB ARCADE</p><h3>Choose a game</h3></div>' +
-      '<button type="button" class="game-picker-close" data-game-picker-close aria-label="Close game menu">×</button></div>' +
-      '<p class="muted">Pick a game to challenge people in this conversation.</p><div class="game-picker-list">' + choices + '</div>' +
-    '</section></div>';
+  overlay.querySelector("[data-game-choice]:not(:disabled)")?.focus();
 }
 
 function renderGameSection(games, scope, targetId) {
   const items = games?.length ? games.map(renderTicTacToeGame).join("")
-    : '<p class="muted">No Tic-Tac-Toe games yet.</p>';
+    : '<p class="muted">No games yet. Start one for others to join!</p>';
   const create = currentUser
-    ? (scope === "message"
-      ? '<button type="button" class="small-button" data-game-picker-open>＋ Make Game</button>'
-      : '<button type="button" class="small-button" data-create-post-game="' + targetId + '">Start public game</button>')
+    ? '<button type="button" class="small-button" data-game-picker-open data-game-scope="' + scope +
+      '" data-game-target="' + targetId + '">＋ Make Game</button>'
     : '<span class="meta">Sign in to start a game.</span>';
-  return '<div class="ttt-section"><div class="ttt-section-heading"><strong>🎮 Games</strong>' + create + '</div>' +
-    (scope === "message" ? renderGamePicker(targetId) : "") + items + '</div>';
+  return '<div class="ttt-section"><div class="ttt-section-heading"><strong>🎮 Games</strong>' + create + '</div>' + items + '</div>';
 }
 
 async function loadPrivateGames(conversationId) {
@@ -460,7 +451,9 @@ async function handleTicTacToeAction(event) {
 
   if (pickerOpen || createMessage) {
     if (!currentUser) return openAuth("login");
-    openPrivateGamePicker(createMessage?.dataset.createMessageGame || activeConversationId);
+    const scope = pickerOpen?.dataset.gameScope || "message";
+    const targetId = pickerOpen?.dataset.gameTarget || createMessage?.dataset.createMessageGame || activeConversationId;
+    openGamePicker(scope, targetId);
     return;
   }
   if (pickerClose || (pickerBackdrop && event.target === pickerBackdrop)) {
@@ -475,17 +468,19 @@ async function handleTicTacToeAction(event) {
   let result;
   if (gameChoice) {
     const gameId = gameChoice.dataset.gameChoice;
-    const conversationId = gameChoice.dataset.conversationId;
+    const scope = gameChoice.dataset.gameScope || "message";
+    const targetId = gameChoice.dataset.gameTarget || activeConversationId;
     document.getElementById("globalGamePicker")?.classList.add("hidden");
     gameChoice.closest("[data-game-picker-backdrop]")?.classList.add("hidden");
     if (gameId === "tic_tac_toe") {
       result = await supabase.rpc("create_tic_tac_toe_game", {
-        _scope: "message", _post_id: null, _conversation_id: conversationId
+        _scope: scope, _post_id: scope === "post" ? targetId : null,
+        _conversation_id: scope === "message" ? targetId : null
       });
-    } else if (gameId === "battleship") {
-      result = await supabase.rpc("create_battleship_game", { _conversation_id: conversationId });
+    } else if (gameId === "battleship" && scope === "message") {
+      result = await supabase.rpc("create_battleship_game", { _conversation_id: targetId });
     } else {
-      return toast("That game is not available yet.");
+      return toast("That game is not available in this location yet.");
     }
   } else if (createPost) {
     result = await supabase.rpc("create_tic_tac_toe_game", {
@@ -506,11 +501,13 @@ async function handleTicTacToeAction(event) {
   if (result?.error) { toast(result.error.message); return; }
   toast(gameChoice || createPost || createMessage ? "Game challenge created!" : join ? "You joined the game!" : "Move played!");
   if (gameChoice?.dataset.gameChoice === "battleship") {
-    await loadBattleshipGames(activeConversationId);
+    await loadBattleshipGames(gameChoice.dataset.gameTarget || activeConversationId);
+  } else if (gameChoice?.dataset.gameScope === "post" || createPost ||
+      (join && !join.closest("#chatGames")) || (move && !move.closest("#chatGames"))) {
+    await refreshFeeds();
   } else if (gameChoice || createMessage || (join && join.closest("#chatGames")) || (move && move.closest("#chatGames"))) {
-    await loadPrivateGames(activeConversationId);
+    await loadPrivateGames(gameChoice?.dataset.gameTarget || activeConversationId);
   }
-  if (createPost || (join && !join.closest("#chatGames")) || (move && !move.closest("#chatGames"))) await refreshFeeds();
 }
 document.addEventListener("click", handleTicTacToeAction);
 
