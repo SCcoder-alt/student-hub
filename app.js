@@ -385,6 +385,29 @@ const PRIVATE_GAME_CATALOG = [
   { id: "battleship", title: "Battleship", description: "Place your fleet and take turns attacking.", icon: "🚢" }
 ];
 
+function openPrivateGamePicker(conversationId) {
+  if (!conversationId) return toast("Open a conversation first.");
+  let overlay = document.getElementById("globalGamePicker");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "globalGamePicker";
+    overlay.className = "game-picker-backdrop";
+    overlay.setAttribute("data-game-picker-backdrop", "");
+    document.body.appendChild(overlay);
+  }
+  const choices = PRIVATE_GAME_CATALOG.map(game =>
+    '<button type="button" class="game-picker-option" data-game-choice="' + game.id + '" data-conversation-id="' + conversationId + '">' +
+      '<span class="game-picker-icon">' + game.icon + '</span><span class="game-picker-copy"><strong>' + game.title +
+      '</strong><small>' + game.description + '</small></span><span class="game-picker-arrow">›</span></button>'
+  ).join("");
+  overlay.innerHTML = '<section class="game-picker" role="dialog" aria-modal="true" aria-label="Choose a game">' +
+    '<div class="game-picker-heading"><div><p class="eyebrow">STUDENT HUB ARCADE</p><h3>Choose a game</h3></div>' +
+    '<button type="button" class="game-picker-close" data-game-picker-close aria-label="Close game menu">×</button></div>' +
+    '<p class="muted">Pick a game to challenge people in this conversation.</p><div class="game-picker-list">' + choices + '</div></section>';
+  overlay.classList.remove("hidden");
+  overlay.querySelector("[data-game-choice]")?.focus();
+}
+
 function renderGamePicker(conversationId) {
   const choices = PRIVATE_GAME_CATALOG.map(game =>
     '<button type="button" class="game-picker-option" data-game-choice="' + game.id + '" data-conversation-id="' + conversationId + '">' +
@@ -435,14 +458,13 @@ async function handleTicTacToeAction(event) {
   const move = event.target.closest("[data-game-move]");
   const refresh = event.target.closest("[data-game-refresh]");
 
-  if (pickerOpen) {
+  if (pickerOpen || createMessage) {
     if (!currentUser) return openAuth("login");
-    const picker = pickerOpen.closest(".ttt-section")?.querySelector("[data-game-picker-backdrop]");
-    picker?.classList.remove("hidden");
-    picker?.querySelector("[data-game-choice]")?.focus();
+    openPrivateGamePicker(createMessage?.dataset.createMessageGame || activeConversationId);
     return;
   }
   if (pickerClose || (pickerBackdrop && event.target === pickerBackdrop)) {
+    document.getElementById("globalGamePicker")?.classList.add("hidden");
     pickerBackdrop?.classList.add("hidden");
     pickerClose?.closest("[data-game-picker-backdrop]")?.classList.add("hidden");
     return;
@@ -454,6 +476,7 @@ async function handleTicTacToeAction(event) {
   if (gameChoice) {
     const gameId = gameChoice.dataset.gameChoice;
     const conversationId = gameChoice.dataset.conversationId;
+    document.getElementById("globalGamePicker")?.classList.add("hidden");
     gameChoice.closest("[data-game-picker-backdrop]")?.classList.add("hidden");
     if (gameId === "tic_tac_toe") {
       result = await supabase.rpc("create_tic_tac_toe_game", {
@@ -467,10 +490,6 @@ async function handleTicTacToeAction(event) {
   } else if (createPost) {
     result = await supabase.rpc("create_tic_tac_toe_game", {
       _scope: "post", _post_id: createPost.dataset.createPostGame, _conversation_id: null
-    });
-  } else if (createMessage) {
-    result = await supabase.rpc("create_tic_tac_toe_game", {
-      _scope: "message", _post_id: null, _conversation_id: createMessage.dataset.createMessageGame
     });
   } else if (join) {
     result = await supabase.rpc("join_tic_tac_toe_game", { _game_id: join.dataset.gameJoin });
