@@ -1242,6 +1242,7 @@ async function openConversation(conversationId, otherUserId) {
     .order("created_at", { ascending: true }).limit(200);
   if (error) { host.textContent = `Could not load messages: ${error.message}`; return; }
   host.innerHTML = data?.length ? data.map(message => `<article class="chat-message ${message.sender_id === currentUser.id ? "mine" : "theirs"}"><p>${escapeHTML(message.body)}</p><span class="meta">${new Date(message.created_at).toLocaleString()}</span><button class="text-button" data-report-message="${message.id}">Report</button></article>`).join("") : '<p class="muted">This conversation is ready. Keep messages respectful.</p>';
+  host.scrollTop = host.scrollHeight;
   $("#chatComposer").classList.remove("hidden");
   $("#blockStudentBtn").classList.toggle("hidden", activeConversationType === "group");
   $("#leaveGroupBtn").classList.toggle("hidden", activeConversationType !== "group");
