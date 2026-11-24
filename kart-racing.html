@@ -312,6 +312,17 @@ function update(dt,now){
       steer+=(steerInput*.78*steerStrength-steer*9.5*dt)*Math.min(1,dt*10);
       heading+=steer*dt*(drift?1.12:1)*Math.sign(speed||1);
 
+      // Arcade-style curve assist: gently guide the kart along the circuit when
+      // the player is not actively steering, instead of letting it drive straight
+      // off a bend and collide with an invisible road-edge clamp.
+      const trackBeforeMove=closestTrackT(kart.position);
+      const trackTangent=tangentAt(trackBeforeMove.t);
+      const targetHeading=Math.atan2(trackTangent.x,trackTangent.z);
+      const headingError=Math.atan2(Math.sin(targetHeading-heading),Math.cos(targetHeading-heading));
+      if(Math.abs(steerInput)===0 && Math.abs(speed)>2){
+        heading+=headingError*Math.min(1,dt*1.8);
+      }
+
       const direction=new THREE.Vector3(Math.sin(heading),0,Math.cos(heading));
       kart.position.addScaledVector(direction,speed*dt);
 
