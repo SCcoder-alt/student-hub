@@ -109,3 +109,37 @@ footer{text-align:center;padding:35px;color:#71809a}
 .ttt-cell:not(:disabled):hover{background:#e5edff}
 .ttt-game-bottom{font-size:.85rem}
 .chat-games{margin:10px 0}
+
+
+/* Compact, searchable post feed cards */
+.post-search-label{display:block;max-width:560px;margin:0 0 18px;font-size:.9rem;color:#526078}
+.post-search-label input{margin-top:6px}
+.post-preview{white-space:pre-wrap;overflow-wrap:anywhere}
+.post-expand{margin-top:12px;border-top:1px solid #e7ebf3;padding-top:10px}
+.post-expand>summary{display:inline-flex;align-items:center;gap:7px;cursor:pointer;color:#315efb;font-weight:750;font-size:.9rem;list-style:none}
+.post-expand>summary::-webkit-details-marker{display:none}
+.post-expand>summary::before{content:"＋";font-weight:900}
+.post-expand[open]>summary::before{content:"−"}
+.post-full-content>p{white-space:pre-wrap;overflow-wrap:anywhere}
+.post-expand .ttt-section{margin-top:12px}
+
+/* Keep messaging within the available screen height; each list can scroll independently. */
+.messages-layout{align-items:stretch}
+.messages-sidebar,.chat-area{max-height:min(68vh,760px);min-height:360px;overflow:hidden}
+.messages-sidebar{display:flex;flex-direction:column}
+#messageRequests,#conversationList{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:5px}
+#messageRequests{max-height:190px}
+#conversationList{flex:1;max-height:420px}
+.chat-area{display:flex;flex-direction:column;gap:8px}
+.group-chat-info{flex:none;max-height:110px;overflow-y:auto}
+.chat-games{flex:none;max-height:190px;overflow-y:auto;overscroll-behavior:contain;padding-right:4px}
+.chat-messages{height:auto;min-height:160px;max-height:36vh;flex:1 1 260px;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:smooth}
+.chat-composer{flex:none}
+@media(max-width:760px){
+ .messages-sidebar,.chat-area{max-height:none;min-height:0}
+ #messageRequests{max-height:170px}
+ #conversationList{max-height:240px;flex:none}
+ .chat-area{max-height:72vh}
+ .chat-games{max-height:150px}
+ .chat-messages{min-height:180px;max-height:38vh;flex:1 1 220px}
+}
