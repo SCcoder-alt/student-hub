@@ -523,7 +523,12 @@ async function openTriviaGame(gameId) {
   modal.classList.remove("hidden");
   await refreshTriviaGame();
   triviaPollTimer = setInterval(() => {
-    if (activeTriviaGameId) refreshTriviaGame();
+    if (!activeTriviaGameId) return;
+    // The host's question editor is intentionally left untouched while open.
+    // Even an unfocused editor (for example, while scrolling) must not be rebuilt.
+    const modal = document.getElementById("triviaModal");
+    if (modal?.querySelector("[data-trivia-add-question]")) return;
+    refreshTriviaGame();
   }, 4000);
 }
 
