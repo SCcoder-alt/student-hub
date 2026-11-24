@@ -165,6 +165,11 @@ begin
   if v_game.status <> 'active' then raise exception 'This game is not active.'; end if;
   if v_game.scope = 'message' and not public.is_dm_member(v_game.conversation_id) then
     raise exception 'Only conversation members can access this game.';
+  elsif v_game.scope = 'post' and not exists (
+    select 1 from public.posts p
+    where p.id = v_game.post_id and p.status = 'published'
+  ) then
+    raise exception 'This post is no longer available.';
   end if;
 
   v_mark := case
