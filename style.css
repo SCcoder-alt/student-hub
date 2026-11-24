@@ -143,3 +143,14 @@ footer{text-align:center;padding:35px;color:#71809a}
  .chat-games{max-height:150px}
  .chat-messages{min-height:180px;max-height:38vh;flex:1 1 220px}
 }
+
+
+ /* Make the compact-post control clearly visible and easy to tap. */
+.post-expand{border-top:0;padding-top:4px;margin-top:10px}
+.post-expand>summary{display:flex;width:100%;box-sizing:border-box;justify-content:space-between;padding:10px 12px;border:1px solid #dbe4f3;border-radius:10px;background:#f5f8ff;color:#294fc3;font-size:.9rem}
+.post-expand>summary:hover{background:#eaf0ff}
+.post-expand>summary:focus-visible{outline:3px solid #91adff;outline-offset:2px}
+.post-expand[open]>summary{background:#eaf0ff;border-color:#c7d6fb}
+.post-expand>summary::before{order:2;margin-left:auto}
+.post-expand[open] .post-full-content{padding-top:8px}
+@media(max-width:760px){.post-expand>summary{min-height:44px}}
