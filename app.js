@@ -299,6 +299,12 @@ async function loadPosts(section) {
   if (!data?.length) { feed.textContent = "No posts yet. Be the first to share something!"; return; }
 
   const ids = data.map(post => post.id);
+  const { data: postGames, error: gamesError } = await supabase.from("tic_tac_toe_games")
+    .select("id,scope,post_id,conversation_id,created_by,player_x,player_o,board,current_turn,status,winner,created_at")
+    .eq("scope", "post").in("post_id", ids).order("created_at", { ascending: false });
+  if (gamesError) console.warn("Could not load post games:", gamesError.message);
+  const gamesByPost = {};
+  (postGames || []).forEach(game => (gamesByPost[game.post_id] ||= []).push(game));
   let likes = [], comments = [];
   if (currentUser) {
     const [likesResult, commentsResult] = await Promise.all([
@@ -328,11 +334,96 @@ async function loadPosts(section) {
         <button class="small-button" data-open-comments="${post.id}">Comments (${commentCounts[post.id] || 0})</button>
       </div>
       <div class="comments-area hidden" id="comments-${post.id}"></div>
+      ${renderGameSection(gamesByPost[post.id] || [], "post", post.id)}
       ${postActionButtons(post)}
       <button class="ghost report" data-id="${post.id}">Report</button>
     </article>
   `; }).join("");
 }
+
+
+// -----------------------------------------------------------------------------
+// TIC-TAC-TOE: public post challenges and private conversation games
+// -----------------------------------------------------------------------------
+function renderTicTacToeGame(game) {
+  const mark = currentUser?.id === game.player_x ? "X" : currentUser?.id === game.player_o ? "O" : null;
+  const canMove = game.status === "active" && mark === game.current_turn;
+  const cells = (game.board || Array(9).fill("")).map((cell, index) =>
+    '<button type="button" class="ttt-cell" data-game-move="' + game.id + '" data-game-cell="' + index + '"' +
+    (!canMove || !!cell ? " disabled" : "") + ' aria-label="Square ' + (index + 1) + '">' + escapeHTML(cell || "") + '</button>'
+  ).join("");
+  let status = game.status === "waiting" ? "Waiting for an opponent"
+    : game.status === "won" ? game.winner + " wins!"
+    : game.status === "draw" ? "It's a draw!"
+    : mark ? (canMove ? "Your turn" : "Waiting for " + game.current_turn)
+    : game.current_turn + "'s turn";
+  const join = game.status === "waiting" && currentUser && currentUser.id !== game.player_x
+    ? '<button type="button" class="small-button" data-game-join="' + game.id + '">Join game</button>' : "";
+  return '<article class="ttt-game"><div class="ttt-game-top"><strong>Tic-Tac-Toe</strong><span class="meta">' + escapeHTML(status) + '</span></div>' +
+    '<div class="ttt-board" role="group" aria-label="Tic-Tac-Toe board">' + cells + '</div>' +
+    '<div class="ttt-game-bottom"><span class="meta">' + (game.status === "active" ? "You are " + (mark || "watching") : "Two-player game") + '</span>' + join +
+    '<button type="button" class="text-button" data-game-refresh="' + game.id + '">Refresh</button></div></article>';
+}
+
+function renderGameSection(games, scope, targetId) {
+  const items = games?.length ? games.map(renderTicTacToeGame).join("")
+    : '<p class="muted">No games yet. Start a challenge!</p>';
+  const create = currentUser
+    ? '<button type="button" class="small-button" data-create-' + scope + '-game="' + targetId + '">Start ' + (scope === "post" ? "public" : "private") + ' game</button>'
+    : '<span class="meta">Sign in to start a game.</span>';
+  return '<div class="ttt-section"><div class="ttt-section-heading"><strong>🎮 Games</strong>' + create + '</div>' + items + '</div>';
+}
+
+async function loadPrivateGames(conversationId) {
+  const host = $("#chatGames");
+  if (!host || !conversationId) return;
+  host.textContent = "Loading private games...";
+  const { data, error } = await supabase.from("tic_tac_toe_games")
+    .select("id,scope,post_id,conversation_id,created_by,player_x,player_o,board,current_turn,status,winner,created_at")
+    .eq("scope", "message").eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false }).limit(20);
+  if (error) { host.textContent = "Could not load games: " + error.message; return; }
+  host.innerHTML = renderGameSection(data || [], "message", conversationId);
+}
+
+async function handleTicTacToeAction(event) {
+  const createPost = event.target.closest("[data-create-post-game]");
+  const createMessage = event.target.closest("[data-create-message-game]");
+  const join = event.target.closest("[data-game-join]");
+  const move = event.target.closest("[data-game-move]");
+  const refresh = event.target.closest("[data-game-refresh]");
+  if (!createPost && !createMessage && !join && !move && !refresh) return;
+  if (!currentUser) { openAuth("login"); return; }
+
+  let result;
+  if (createPost) {
+    result = await supabase.rpc("create_tic_tac_toe_game", {
+      _scope: "post", _post_id: createPost.dataset.createPostGame, _conversation_id: null
+    });
+  } else if (createMessage) {
+    result = await supabase.rpc("create_tic_tac_toe_game", {
+      _scope: "message", _post_id: null, _conversation_id: createMessage.dataset.createMessageGame
+    });
+  } else if (join) {
+    result = await supabase.rpc("join_tic_tac_toe_game", { _game_id: join.dataset.gameJoin });
+  } else if (move) {
+    result = await supabase.rpc("make_tic_tac_toe_move", {
+      _game_id: move.dataset.gameMove, _cell: Number(move.dataset.gameCell)
+    });
+  } else {
+    if (refresh.closest("#chatGames")) await loadPrivateGames(activeConversationId);
+    else await refreshFeeds();
+    return;
+  }
+
+  if (result?.error) { toast(result.error.message); return; }
+  toast(createPost || createMessage ? "Game challenge created!" : join ? "You joined the game!" : "Move played!");
+  if (createMessage || (join && join.closest("#chatGames")) || (move && move.closest("#chatGames"))) {
+    await loadPrivateGames(activeConversationId);
+  }
+  if (createPost || (join && !join.closest("#chatGames")) || (move && !move.closest("#chatGames"))) await refreshFeeds();
+}
+document.addEventListener("click", handleTicTacToeAction);
 
 async function reportPost(postId) {
   const user = await getUser();
@@ -1156,6 +1247,7 @@ async function openConversation(conversationId, otherUserId) {
   } else {
     info.textContent = "";
   }
+  await loadPrivateGames(conversationId);
   await loadMessagesPanel();
 }
 
