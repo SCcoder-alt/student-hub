@@ -248,7 +248,7 @@ function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":
 function resetRace(){
   raceRunning=false;paused=false;finished=false;lap=0;elapsed=0;speed=0;heading=0;steer=0;
   kart.position.set(48,0,0);kart.rotation.y=0;previousTrackT=0;raceStartAt=0;raceStartedAt=0;
-  $("lap").textContent="0 / "+maxLaps;$("speed").textContent="0 km/h";$("time").textContent="00:00.0";$("countdown").classList.add("hidden");
+  $("lap").textContent="1 / "+maxLaps;$("speed").textContent="0 km/h";$("time").textContent="00:00.0";$("countdown").classList.add("hidden");
 }
 function beginRace(startAt=Date.now()+3000){
   resetRace();raceStartAt=startAt;raceRunning=true;setPanel("");showMessage("Get ready! W / ↑ accelerate · A/D / ← → steer · Space drift");
@@ -291,7 +291,7 @@ function update(dt,now){
       const left=keys.has("a")||keys.has("arrowleft"),right=keys.has("d")||keys.has("arrowright"),drift=keys.has(" ");
       if(forward)speed=Math.min(35,speed+22*dt);else speed=Math.max(0,speed-5*dt);
       if(back)speed=Math.max(-10,speed-30*dt);
-      const steerInput=(left?1:0)-(right?1:0);
+      const steerInput=(right?1:0)-(left?1:0);
       const steerStrength=Math.min(1,Math.abs(speed)/8);
       steer+=(steerInput*2.15*steerStrength-steer*7*dt)*Math.min(1,dt*8);
       heading+=steer*dt*(drift?1.35:1)*Math.sign(speed||1);
@@ -305,7 +305,7 @@ function update(dt,now){
         kart.position.x=center.x+side.x*clamped;kart.position.z=center.z+side.z*clamped;
         speed*=.82;
       }
-      if(previousTrackT>.88&&t<.12&&speed>2){lap++;$("lap").textContent=lap+" / "+maxLaps;if(lap>=maxLaps){finished=true;raceRunning=false;$("finishTime").textContent="Your time: "+formatTime(elapsed);setPanel("finish");}}
+      if(previousTrackT>.88&&t<.12&&speed>2){lap++;$("lap").textContent=Math.min(lap+1,maxLaps)+" / "+maxLaps;if(lap>=maxLaps){finished=true;raceRunning=false;$("finishTime").textContent="Your time: "+formatTime(elapsed);setPanel("finish");}}
       previousTrackT=t;
       kart.rotation.y=heading;
       if(drift&&Math.abs(steerInput)>0)speed=Math.max(0,speed-.8*dt);
