@@ -186,7 +186,8 @@ footer{text-align:center;padding:35px;color:#71809a}
 .bs-boards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:14px}
 .bs-boards section{min-width:0}
 .bs-boards h4{margin:4px 0 9px;text-align:center}
-.bs-grid{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px;width:min(100%,390px);margin:12px auto}
+.bs-grid{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:3px;width:min(100%,430px);margin:12px auto}
+.bs-axis{aspect-ratio:1;display:grid;place-items:center;color:#64748b;font-size:.72rem;font-weight:800}
 .bs-cell{aspect-ratio:1;min-width:0;padding:0;border:1px solid #cbd5e1;border-radius:4px;background:#f3f7fc;color:#28415f;font-size:clamp(.55rem,1.8vw,.9rem);font-weight:800;cursor:pointer}
 .bs-cell:not(:disabled):hover{background:#dce8fa}
 .bs-cell:disabled{cursor:default;opacity:1}
@@ -195,4 +196,4 @@ footer{text-align:center;padding:35px;color:#71809a}
 .bs-cell.bs-miss{background:#e7edf5;color:#718096}
 .bs-footer{display:flex;justify-content:flex-end;margin-top:8px}
 .bs-game .primary:disabled{opacity:.5;cursor:not-allowed}
-@media(max-width:680px){.bs-boards{grid-template-columns:1fr}.bs-grid{width:min(100%,340px);gap:2px}.bs-cell{border-radius:3px}}
+@media(max-width:680px){.bs-boards{grid-template-columns:1fr}.bs-grid{width:min(100%,370px);gap:2px}.bs-cell{border-radius:3px}}
