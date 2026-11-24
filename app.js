@@ -527,7 +527,7 @@ async function openTriviaGame(gameId) {
   }, 4000);
 }
 
-async function refreshTriviaGame() {
+async function refreshTriviaGame(force = false) {
   const gameId = activeTriviaGameId;
   if (!gameId) return;
 
@@ -542,7 +542,7 @@ async function refreshTriviaGame() {
 
   // Ignore an older poll if the user switched games or opened the create dialog.
   if (activeTriviaGameId !== gameId || !modal.isConnected || modal.classList.contains("hidden")) return;
-  if (modal.contains(document.activeElement) && document.activeElement.closest("form")) return;
+  if (!force && modal.querySelector("[data-trivia-add-question]")) return;
 
   const game = data;
   const players = game.players || [];
@@ -644,7 +644,7 @@ document.addEventListener("click", async event => {
     await refreshTriviaGame();
     return;
   }
-  if (refresh) await refreshTriviaGame();
+  if (refresh) await refreshTriviaGame(true);
 });
 
 document.addEventListener("submit", async event => {
@@ -681,7 +681,7 @@ document.addEventListener("submit", async event => {
   });
   if (error) { toast(error.message); return; }
   toast("Question added!");
-  await refreshTriviaGame();
+  await refreshTriviaGame(true);
 });
 
 async function handleTicTacToeAction(event) {
