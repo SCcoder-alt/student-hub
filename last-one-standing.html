@@ -125,11 +125,13 @@ const rigSkeleton=new THREE.Skeleton(boneList);
 // Optional armature overlay for checking joint placement (press R).
 const rigHelper=new THREE.SkeletonHelper(player);rigHelper.visible=false;rigHelper.material.depthTest=false;rigHelper.material.transparent=true;rigHelper.material.opacity=.9;scene.add(rigHelper);
 let showRig=false;
-// Place the rig using its actual lowest point. The animated-foot correction
-// below keeps this aligned as the pose changes.
+// Keep physics grounded by a fixed root offset. The animated skeleton is
+// deliberately not used as the collision body: leg swings must not move the
+// player's physics position up and down.
 player.updateMatrixWorld(true);
 const initialRigBounds=new THREE.Box3().setFromObject(player);
-player.position.set(0,terrainHeight(0,0)-initialRigBounds.min.y+.025,0);
+const PLAYER_ROOT_OFFSET=-initialRigBounds.min.y+.025;
+player.position.set(0,terrainHeight(0,0)+PLAYER_ROOT_OFFSET,0);
 const keys=new Set();addEventListener("keydown",e=>{if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();if(e.code==="KeyR"&&!e.repeat){showRig=!showRig;rigHelper.visible=showRig;}keys.add(e.code);});addEventListener("keyup",e=>keys.delete(e.code));addEventListener("blur",()=>keys.clear());
 document.querySelectorAll("[data-key]").forEach(b=>{const k=b.dataset.key;b.addEventListener("pointerdown",e=>{e.preventDefault();keys.add(k);b.setPointerCapture(e.pointerId)});for(const ev of ["pointerup","pointercancel","lostpointercapture"])b.addEventListener(ev,()=>keys.delete(k));});
 let yaw=0,pitch=.12,dragging=false,lastX=0,lastY=0;
@@ -163,12 +165,11 @@ else{const response=input.lengthSq()?11:8;velocity.x=THREE.MathUtils.damp(veloci
 moveAxis(velocity.x*dt,velocity.z*dt);
 if(keys.has("Space")&&onGround){verticalVelocity=8.1;onGround=false;}
 verticalVelocity-=22*dt;player.position.y+=verticalVelocity*dt;
-// Ground contact is calculated from the actual boot soles, not the body bounds.
-player.updateMatrixWorld(true);
-let lowestSole=Infinity;
-for(const sole of footContacts){const p=sole.getWorldPosition(new THREE.Vector3());lowestSole=Math.min(lowestSole,p.y-terrainHeight(p.x,p.z));}
-if(onGround){player.position.y-=lowestSole;verticalVelocity=0;}
-else if(lowestSole<=0){player.position.y-=lowestSole;verticalVelocity=0;onGround=true;}
+// A stable ground plane under the physics root prevents animated feet from
+// dragging the whole character above or below the terrain.
+const groundRootY=terrainHeight(player.position.x,player.position.z)+PLAYER_ROOT_OFFSET;
+if(onGround){player.position.y=groundRootY;verticalVelocity=0;}
+else if(player.position.y<=groundRootY){player.position.y=groundRootY;verticalVelocity=0;onGround=true;}
 const horizontalSpeed=Math.hypot(velocity.x,velocity.z);
 const moving=horizontalSpeed>.25;
 const lowProfile=slideTimer>0;
@@ -186,7 +187,7 @@ if(moving){
  walkPhase+=dt*(sprint?14:9.2)*Math.max(.25,moveBlend);
 }
 const idleBreath=Math.sin(idleClock*2.1)*.012;
-hips.position.y=THREE.MathUtils.damp(hips.position.y,.98-(crouchBlend*.16)-(landing*.035),13,dt);
+hips.position.y=THREE.MathUtils.damp(hips.position.y,.98-(landing*.035),13,dt);
 hips.rotation.z=THREE.MathUtils.damp(hips.rotation.z,moving?Math.sin(walkPhase)*.025:Math.sin(idleClock*1.1)*.012,8,dt);
 hips.rotation.x=THREE.MathUtils.damp(hips.rotation.x,airborne?-.08:(lowProfile?-.18:0),10,dt);
 spine.rotation.x=THREE.MathUtils.damp(spine.rotation.x,
@@ -217,14 +218,7 @@ arms.forEach((arm,i)=>{
  wrists[i].rotation.x=THREE.MathUtils.damp(wrists[i].rotation.x,lowProfile?-.18:0,10,dt);
 });
 player.scale.y=THREE.MathUtils.damp(player.scale.y,1-landing*.08,16,dt);
-// Recheck both animated boot soles after pose updates so crouch/run cycles
-// cannot pull the feet through the terrain or leave the root hovering.
-if(onGround){
- player.updateMatrixWorld(true);
- let soleError=Infinity;
- for(const sole of footContacts){const p=sole.getWorldPosition(new THREE.Vector3());soleError=Math.min(soleError,p.y-terrainHeight(p.x,p.z));}
- player.position.y-=soleError;
-}
+// The physics root stays grounded independently of the animated skeleton.
 document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
 const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);
 const distance=7.5,cp=Math.cos(pitch);
