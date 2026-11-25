@@ -37,19 +37,50 @@ function terrainHeight(x,z){
  const hill=(cx,cz,amp,spread)=>amp*Math.exp(-((x-cx)**2+(z-cz)**2)/(2*spread*spread));
  return 1.02+hill(29,18,5.2,17)+hill(-30,-18,4.2,15)+hill(4,48,3.4,13)+hill(-48,35,2.8,12)+.28*Math.sin(x*.075)*Math.cos(z*.06);
 }
-const terrainGeometry=new THREE.CircleGeometry(85,160);
-const terrainPositions=terrainGeometry.attributes.position;
-const terrainColors=[];
-for(let i=0;i<terrainPositions.count;i++){
- const x=terrainPositions.getX(i),y=terrainPositions.getY(i),h=terrainHeight(x,-y);
- terrainPositions.setZ(i,h-1.02);
- const shade=THREE.MathUtils.clamp(.82+(h-1.02)*.035+Math.sin(x*.19+Math.cos(y*.14))*.035,.72,1.12);
- terrainColors.push(.30*shade,.49*shade,.25*shade);
+// Build an actual triangulated heightfield. CircleGeometry is only a center
+// point plus an outer ring, so it cannot represent the hills used by collision.
+const TERRAIN_RADIUS=85,TERRAIN_SEGMENTS=240,TERRAIN_STEP=(TERRAIN_RADIUS*2)/TERRAIN_SEGMENTS;
+const terrainGeometry=new THREE.BufferGeometry();
+const terrainPositions=new Float32Array((TERRAIN_SEGMENTS+1)*(TERRAIN_SEGMENTS+1)*3);
+const terrainColors=new Float32Array((TERRAIN_SEGMENTS+1)*(TERRAIN_SEGMENTS+1)*3);
+const terrainHeights=new Float32Array((TERRAIN_SEGMENTS+1)*(TERRAIN_SEGMENTS+1));
+const terrainIndices=[];
+const terrainIndex=(ix,iz)=>iz*(TERRAIN_SEGMENTS+1)+ix;
+for(let iz=0;iz<=TERRAIN_SEGMENTS;iz++){
+ const z=-TERRAIN_RADIUS+iz*TERRAIN_STEP;
+ for(let ix=0;ix<=TERRAIN_SEGMENTS;ix++){
+  const x=-TERRAIN_RADIUS+ix*TERRAIN_STEP;
+  const index=terrainIndex(ix,iz),h=terrainHeight(x,z);
+  terrainHeights[index]=h;
+  terrainPositions[index*3]=x;terrainPositions[index*3+1]=h;terrainPositions[index*3+2]=z;
+  const shade=THREE.MathUtils.clamp(.82+(h-1.02)*.035+Math.sin(x*.19+Math.cos(z*.14))*.035,.72,1.12);
+  terrainColors[index*3]=.30*shade;terrainColors[index*3+1]=.49*shade;terrainColors[index*3+2]=.25*shade;
+ }
 }
-terrainGeometry.setAttribute("color",new THREE.Float32BufferAttribute(terrainColors,3));
+const insideTerrain=(index)=>{const x=terrainPositions[index*3],z=terrainPositions[index*3+2];return x*x+z*z<=TERRAIN_RADIUS*TERRAIN_RADIUS;};
+for(let iz=0;iz<TERRAIN_SEGMENTS;iz++){
+ for(let ix=0;ix<TERRAIN_SEGMENTS;ix++){
+  const a=terrainIndex(ix,iz),b=terrainIndex(ix+1,iz),c=terrainIndex(ix,iz+1),d=terrainIndex(ix+1,iz+1);
+  if(insideTerrain(a)&&insideTerrain(c)&&insideTerrain(b))terrainIndices.push(a,c,b);
+  if(insideTerrain(b)&&insideTerrain(c)&&insideTerrain(d))terrainIndices.push(b,c,d);
+ }
+}
+terrainGeometry.setAttribute("position",new THREE.BufferAttribute(terrainPositions,3));
+terrainGeometry.setAttribute("color",new THREE.BufferAttribute(terrainColors,3));
+terrainGeometry.setIndex(terrainIndices);
 terrainGeometry.computeVertexNormals();
-const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.96});
-const ground=new THREE.Mesh(terrainGeometry,terrainMat);ground.rotation.x=-Math.PI/2;ground.position.y=1.02;ground.receiveShadow=true;ground.castShadow=true;scene.add(ground);
+const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.96,side:THREE.DoubleSide});
+const ground=new THREE.Mesh(terrainGeometry,terrainMat);ground.receiveShadow=true;ground.castShadow=true;scene.add(ground);
+// Sample the exact same triangles used by the visible terrain mesh. This keeps
+// the physics floor and rendered surface in agreement between grid vertices.
+function terrainSurfaceHeight(x,z){
+ const gx=THREE.MathUtils.clamp((x+TERRAIN_RADIUS)/TERRAIN_STEP,0,TERRAIN_SEGMENTS-.000001);
+ const gz=THREE.MathUtils.clamp((z+TERRAIN_RADIUS)/TERRAIN_STEP,0,TERRAIN_SEGMENTS-.000001);
+ const ix=Math.floor(gx),iz=Math.floor(gz),u=gx-ix,v=gz-iz;
+ const a=terrainIndex(ix,iz),b=terrainIndex(ix+1,iz),c=terrainIndex(ix,iz+1),d=terrainIndex(ix+1,iz+1);
+ const ya=terrainHeights[a],yb=terrainHeights[b],yc=terrainHeights[c],yd=terrainHeights[d];
+ return u+v<=1 ? ya*(1-u-v)+yb*u+yc*v : yb*(1-v)+yc*(1-u)+yd*(u+v-1);
+}
 const beach=new THREE.Mesh(new THREE.RingGeometry(83,90,96),sand);beach.rotation.x=-Math.PI/2;beach.position.y=1.01;scene.add(beach);
 const obstacles=[];
 function block(x,z,w,h,d,mat=rock,y=1.02){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y+h/2,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);obstacles.push({x,z,hx:w/2,hz:d/2});return m;}
@@ -167,7 +198,7 @@ if(keys.has("Space")&&onGround){verticalVelocity=8.1;onGround=false;}
 verticalVelocity-=22*dt;player.position.y+=verticalVelocity*dt;
 // A stable ground plane under the physics root prevents animated feet from
 // dragging the whole character above or below the terrain.
-const groundRootY=terrainHeight(player.position.x,player.position.z)+PLAYER_ROOT_OFFSET;
+const groundRootY=terrainSurfaceHeight(player.position.x,player.position.z)+PLAYER_ROOT_OFFSET;
 if(onGround){player.position.y=groundRootY;verticalVelocity=0;}
 else if(player.position.y<=groundRootY){player.position.y=groundRootY;verticalVelocity=0;onGround=true;}
 const horizontalSpeed=Math.hypot(velocity.x,velocity.z);
