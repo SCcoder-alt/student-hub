@@ -112,7 +112,7 @@ const glassMats=[
  new THREE.MeshStandardMaterial({color:0x28495b,metalness:.35,roughness:.2}),
  new THREE.MeshStandardMaterial({color:0x9bc5cb,metalness:.18,roughness:.25})
 ];
-const concrete=material(0x777f83),interiorWall=material(0xd6d0c3),floorMat=material(0x77736b),tileMat=material(0xaaa69a),roofMat=material(0x454d54);
+const concrete=material(0x777f83),interiorWall=material(0xd6d0c3),floorMat=material(0x77736b),tileMat=material(0xaaa69a),roofMat=material(0x454d54),cityTrim=material(0xb08a55);
 function addBox(parent,x,y,z,w,h,d,mat,cast=true){
  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
  m.position.set(x,y+h/2,z);m.castShadow=cast;m.receiveShadow=true;parent.add(m);return m;
@@ -160,7 +160,7 @@ function addBuilding(spec){
  // Ground-floor interior: a clear walkable central path plus furnished edges.
  addBox(shell,-w*.22,.03,-d*.2,Math.min(1.5,w*.16),.9,.75,wood);
  addBox(shell,w*.22,.03,-d*.2,Math.min(1.5,w*.16),.9,.75,wood);
- addBox(shell,0,.03,-d*.32,Math.min(2.4,w*.35),.12,.65,trim);
+ addBox(shell,0,.03,-d*.32,Math.min(2.4,w*.35),.12,.65,cityTrim);
  // Interior support columns are kept near the perimeter, not across the doorway.
  for(const sx of [-1,1]){
   for(const sz of [-1,1]){
@@ -176,14 +176,14 @@ function addBuilding(spec){
    addBox(shell,stairX,stepH-.16,stepZ,1.7,.32,run/steps+.06,concrete);
   }
   // Stair side rails and landing are architectural cues; the doorway remains clear.
-  addBox(shell,stairX-.92,rise*.48,stairZ, .12,.12,run,trim);
-  addBox(shell,stairX+.92,rise*.48,stairZ, .12,.12,run,trim);
+  addBox(shell,stairX-.92,rise*.48,stairZ, .12,.12,run,cityTrim);
+  addBox(shell,stairX+.92,rise*.48,stairZ, .12,.12,run,cityTrim);
   addBox(shell,stairX,rise-.12,-d*.34,2,.24,1.8,concrete);
  }
  // Door frame and an open, clearly readable entrance.
- addBox(shell,-door/2-.08,0,d/2+.08,.16,2.65,.18,trim);
- addBox(shell,door/2+.08,0,d/2+.08,.16,2.65,.18,trim);
- addBox(shell,0,2.65,d/2+.08,door+.32,.18,.18,trim);
+ addBox(shell,-door/2-.08,0,d/2+.08,.16,2.65,.18,cityTrim);
+ addBox(shell,door/2+.08,0,d/2+.08,.16,2.65,.18,cityTrim);
+ addBox(shell,0,2.65,d/2+.08,door+.32,.18,.18,cityTrim);
  // Keep exterior walls and interior columns in the movement collision list.
  for(const side of [-1,1]){
   obstacles.push({x:x+side*(w/2-wall/2),z,hx:wall*.62,hz:d/2});
