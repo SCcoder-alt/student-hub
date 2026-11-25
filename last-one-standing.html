@@ -93,7 +93,7 @@ for(const x of [-.105,.105]){
  part(headBone,new THREE.SphereGeometry(.055,8,8),skinMat,[x*2.35,.045,.005]);
 }
 part(headBone,new THREE.SphereGeometry(.035,8,8),skinMat,[0,.015,.255]);
-const legs=[],knees=[],ankles=[],arms=[],elbows=[],wrists=[],boneList=[hips,spine,neck,headBone];
+const legs=[],knees=[],ankles=[],arms=[],elbows=[],wrists=[],footContacts=[],boneList=[hips,spine,neck,headBone];
 for(const side of [-1,1]){
  const hip=new THREE.Bone();hip.name=side<0?"LeftHip":"RightHip";hip.position.set(side*.22,-.03,0);hips.add(hip);legs.push(hip);boneList.push(hip);
  limb(hip,.17,.39,pants,[0,-.29,0]);
@@ -105,6 +105,8 @@ for(const side of [-1,1]){
 part(knee,new THREE.BoxGeometry(.27,.19,.09),clothLight,[0,-.22,.105]);
 part(knee,new THREE.BoxGeometry(.21,.035,.025),trim,[0,-.22,.157]);
  const ankle=new THREE.Bone();ankle.name=side<0?"LeftAnkle":"RightAnkle";ankle.position.y=-.49;knee.add(ankle);ankles.push(ankle);boneList.push(ankle);
+ // Contact point at the underside of each boot; follows every leg animation.
+ const soleContact=new THREE.Object3D();soleContact.position.set(0,-.087,.075);ankle.add(soleContact);footContacts.push(soleContact);
  part(ankle,new THREE.BoxGeometry(.29,.17,.43),bootMat,[0,0,.075]);
  part(ankle,new THREE.BoxGeometry(.3,.045,.4),gloveMat,[0,-.09,.075]);
  const shoulder=new THREE.Bone();shoulder.name=side<0?"LeftShoulder":"RightShoulder";shoulder.position.set(side*.46,.39,0);spine.add(shoulder);arms.push(shoulder);boneList.push(shoulder);
@@ -161,12 +163,12 @@ else{const response=input.lengthSq()?11:8;velocity.x=THREE.MathUtils.damp(veloci
 moveAxis(velocity.x*dt,velocity.z*dt);
 if(keys.has("Space")&&onGround){verticalVelocity=8.1;onGround=false;}
 verticalVelocity-=22*dt;player.position.y+=verticalVelocity*dt;
-// Collision uses the lowest point of the current rig pose, not a fixed root offset.
+// Ground contact is calculated from the actual boot soles, not the body bounds.
 player.updateMatrixWorld(true);
-let currentRigBounds=new THREE.Box3().setFromObject(player);
-const floorY=terrainHeight(player.position.x,player.position.z);
-if(onGround){player.position.y+=floorY-currentRigBounds.min.y;verticalVelocity=0;}
-else if(currentRigBounds.min.y<=floorY){player.position.y+=floorY-currentRigBounds.min.y;verticalVelocity=0;onGround=true;}
+let lowestSole=Infinity;
+for(const sole of footContacts){const p=sole.getWorldPosition(new THREE.Vector3());lowestSole=Math.min(lowestSole,p.y-terrainHeight(p.x,p.z));}
+if(onGround){player.position.y-=lowestSole;verticalVelocity=0;}
+else if(lowestSole<=0){player.position.y-=lowestSole;verticalVelocity=0;onGround=true;}
 const horizontalSpeed=Math.hypot(velocity.x,velocity.z);
 const moving=horizontalSpeed>.25;
 const lowProfile=slideTimer>0;
@@ -215,12 +217,13 @@ arms.forEach((arm,i)=>{
  wrists[i].rotation.x=THREE.MathUtils.damp(wrists[i].rotation.x,lowProfile?-.18:0,10,dt);
 });
 player.scale.y=THREE.MathUtils.damp(player.scale.y,1-landing*.08,16,dt);
-// Recheck after animation: crouching, stepping, and landing all change foot height.
+// Recheck both animated boot soles after pose updates so crouch/run cycles
+// cannot pull the feet through the terrain or leave the root hovering.
 if(onGround){
  player.updateMatrixWorld(true);
- currentRigBounds=new THREE.Box3().setFromObject(player);
- const animatedFloorY=terrainHeight(player.position.x,player.position.z);
- player.position.y+=animatedFloorY-currentRigBounds.min.y;
+ let soleError=Infinity;
+ for(const sole of footContacts){const p=sole.getWorldPosition(new THREE.Vector3());soleError=Math.min(soleError,p.y-terrainHeight(p.x,p.z));}
+ player.position.y-=soleError;
 }
 document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
 const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);
