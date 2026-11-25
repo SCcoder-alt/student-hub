@@ -83,13 +83,159 @@ function terrainSurfaceHeight(x,z){
 }
 const beach=new THREE.Mesh(new THREE.RingGeometry(83,90,96),sand);beach.rotation.x=-Math.PI/2;beach.position.y=1.01;scene.add(beach);
 const obstacles=[];
-function block(x,z,w,h,d,mat=rock,y=1.02){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y+h/2,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);obstacles.push({x,z,hx:w/2,hz:d/2});return m;}
-function tree(x,z,s=1){const g=new THREE.Group();const t=new THREE.Mesh(new THREE.CylinderGeometry(.28*s,.4*s,2.8*s,8),wood);t.position.y=1.4*s;t.castShadow=true;g.add(t);for(let i=0;i<3;i++){const c=new THREE.Mesh(new THREE.ConeGeometry((2.1-i*.35)*s,2.6*s,8),material(i===1?0x286b42:0x347d4c));c.position.y=(3+i*1.1)*s;c.castShadow=true;g.add(c);}g.position.set(x,terrainHeight(x,z),z);scene.add(g);obstacles.push({x,z,hx:.65*s,hz:.65*s});}
-for(let i=0;i<34;i++){const a=i/34*Math.PI*2,r=57+(i%4)*5;tree(Math.cos(a)*r,Math.sin(a)*r,.8+(i%3)*.14);}
-block(-18,-12,12,5,2,wood);block(-18,-18,2,5,10,wood);block(-7,-17,2,5,10,wood);block(19,-13,10,4,3,blue);block(19,-5,3,4,14,blue);block(34,13,12,3,3,white);block(-34,14,9,4,9,rock);block(-7,31,16,3,3,rock);block(8,30,3,3,12,rock);
-// Low practice barriers and a simple raised platform.
-block(0,-37,24,1.3,2,white);block(-28,-32,2,1.3,16,white);block(28,34,2,1.3,16,white);
-const platform=new THREE.Mesh(new THREE.BoxGeometry(15,1,10),material(0x8b9ca8));platform.position.set(0,1.6,17);platform.castShadow=true;platform.receiveShadow=true;scene.add(platform);
+function block(x,z,w,h,d,mat=rock,y=1.02){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+ m.position.set(x,y+h/2,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);
+ obstacles.push({x,z,hx:w/2,hz:d/2});return m;
+}
+function tree(x,z,s=1){
+ const g=new THREE.Group();
+ const t=new THREE.Mesh(new THREE.CylinderGeometry(.28*s,.4*s,2.8*s,8),wood);
+ t.position.y=1.4*s;t.castShadow=true;g.add(t);
+ for(let i=0;i<3;i++){
+  const c=new THREE.Mesh(new THREE.ConeGeometry((2.1-i*.35)*s,2.6*s,8),material(i===1?0x286b42:0x347d4c));
+  c.position.y=(3+i*1.1)*s;c.castShadow=true;g.add(c);
+ }
+ g.position.set(x,terrainHeight(x,z),z);scene.add(g);obstacles.push({x,z,hx:.65*s,hz:.65*s});
+}
+// CITY WORLD — buildings are generated from reusable architectural pieces.
+// Every building has a real, unobstructed street-facing entrance and a furnished
+// ground-floor interior. Upper stories, windows, roofs and stair cores give the
+// skyline its full height while keeping the scene procedurally lightweight.
+const cityMaterials=[
+ material(0x9aa6ad),material(0xc2b8a5),material(0x596b78),
+ material(0xd2d5d1),material(0x8b7767),material(0x536d79),
+ material(0xb4c0c4)
+];
+const glassMats=[
+ new THREE.MeshStandardMaterial({color:0x6da4b7,metalness:.25,roughness:.22}),
+ new THREE.MeshStandardMaterial({color:0x28495b,metalness:.35,roughness:.2}),
+ new THREE.MeshStandardMaterial({color:0x9bc5cb,metalness:.18,roughness:.25})
+];
+const concrete=material(0x777f83),interiorWall=material(0xd6d0c3),floorMat=material(0x77736b),tileMat=material(0xaaa69a),roofMat=material(0x454d54);
+function addBox(parent,x,y,z,w,h,d,mat,cast=true){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+ m.position.set(x,y+h/2,z);m.castShadow=cast;m.receiveShadow=true;parent.add(m);return m;
+}
+function addBuilding(spec){
+ const {x,z,w,d,floors=2,style=0,name="Building"}=spec;
+ const base=terrainHeight(x,z),floorH=3.35,totalH=floors*floorH;
+ const shell=new THREE.Group();shell.position.set(x,base,z);scene.add(shell);
+ const facade=cityMaterials[style%cityMaterials.length],glass=glassMats[style%glassMats.length];
+ const wall=.42,door=2.35,front=-d/2;
+ // Ground-floor shell: split front wall leaves a generous walk-in doorway.
+ addBox(shell,-w/2+wall/2,0,0,wall,totalH,d,facade);
+ addBox(shell,w/2-wall/2,0,0,wall,totalH,d,facade);
+ addBox(shell,0,0,-d/2+wall/2,w,totalH,wall,facade);
+ const sideWidth=(w-door)/2;
+ addBox(shell,-(door/2+sideWidth/2),0,d/2-wall/2,sideWidth,totalH,wall,facade);
+ addBox(shell,(door/2+sideWidth/2),0,d/2-wall/2,sideWidth,totalH,wall,facade);
+ // Floors and roof.
+ for(let level=0;level<floors;level++){
+  const y=level*floorH;
+  addBox(shell,0,y-.12,0,w-.55,.24,d-.55,level===0?floorMat:concrete,false);
+  if(level>0){
+   // Upper-level front wall is also split around a large window bay.
+   addBox(shell,0,y,d/2-wall/2,w,totalH-y,wall,facade);
+  }
+ }
+ addBox(shell,0,totalH,0,w+.25,.32,d+.25,roofMat);
+ // Regular window bands on all visible elevations.
+ for(let level=0;level<floors;level++){
+  const y=level*floorH+1.05;
+  const count=Math.max(2,Math.floor(w/2.6));
+  for(let i=0;i<count;i++){
+   const px=-w/2+(i+1)*w/(count+1);
+   const win=addBox(shell,px,y,d/2+.012,Math.min(1.35,w/(count+1)*.65),1.35,.055,glass,false);
+   const sill=addBox(shell,px,y-.73,d/2+.045,Math.min(1.48,w/(count+1)*.72),.09,.12,concrete,false);
+  }
+  for(const side of [-1,1]){
+   const n=Math.max(2,Math.floor(d/3));
+   for(let i=0;i<n;i++){
+    const pz=-d/2+(i+1)*d/(n+1);
+    addBox(shell,side*(w/2+.012),y,pz,.055,1.35,Math.min(1.35,d/(n+1)*.65),glass,false);
+   }
+  }
+ }
+ // Ground-floor interior: a clear walkable central path plus furnished edges.
+ addBox(shell,-w*.22,.03,-d*.2,Math.min(1.5,w*.16),.9,.75,wood);
+ addBox(shell,w*.22,.03,-d*.2,Math.min(1.5,w*.16),.9,.75,wood);
+ addBox(shell,0,.03,-d*.32,Math.min(2.4,w*.35),.12,.65,trim);
+ // Interior support columns are kept near the perimeter, not across the doorway.
+ for(const sx of [-1,1]){
+  for(const sz of [-1,1]){
+   const col=addBox(shell,sx*(w/2-1.05),0,sz*(d/2-1.05),.28,floorH,.28,concrete);
+   obstacles.push({x:x+sx*(w/2-1.05),z:z+sz*(d/2-1.05),hx:.2,hz:.2});
+  }
+ }
+ // A visible stair core in every multi-storey building.
+ if(floors>1){
+  const stairX=-w*.29,stairZ=-d*.12,steps=10,run=Math.min(d*.62,8),rise=floorH;
+  for(let i=0;i<steps;i++){
+   const stepH=(i+1)*rise/steps,stepZ=stairZ+run/2-(i+.5)*run/steps;
+   addBox(shell,stairX,stepH-.16,stepZ,1.7,.32,run/steps+.06,concrete);
+  }
+  // Stair side rails and landing are architectural cues; the doorway remains clear.
+  addBox(shell,stairX-.92,rise*.48,stairZ, .12,.12,run,trim);
+  addBox(shell,stairX+.92,rise*.48,stairZ, .12,.12,run,trim);
+  addBox(shell,stairX,rise-.12,-d*.34,2,.24,1.8,concrete);
+ }
+ // Door frame and an open, clearly readable entrance.
+ addBox(shell,-door/2-.08,0,d/2+.08,.16,2.65,.18,trim);
+ addBox(shell,door/2+.08,0,d/2+.08,.16,2.65,.18,trim);
+ addBox(shell,0,2.65,d/2+.08,door+.32,.18,.18,trim);
+ // Keep exterior walls and interior columns in the movement collision list.
+ for(const side of [-1,1]){
+  obstacles.push({x:x+side*(w/2-wall/2),z,hx:wall*.62,hz:d/2});
+ }
+ obstacles.push({x,z:z-d/2+wall/2,hx:w/2,hz:wall*.62});
+ obstacles.push({x:x-w/2+wall/2,z:z+d/2-wall/2,hx:(w-door)/2,hz:wall*.62});
+ obstacles.push({x:x+w/2-wall/2,z:z+d/2-wall/2,hx:(w-door)/2,hz:wall*.62});
+ return {name,x,z,w,d,floors,height:totalH};
+}
+// Harbor Town — a compact downtown core with towers, shops and apartments.
+const buildings=[];
+const buildingSpecs=[
+ {x:-25,z:-22,w:13,d:12,floors:7,style:0,name:"Harbor Tower"},
+ {x:-7,z:-25,w:11,d:11,floors:5,style:2,name:"Glassline Offices"},
+ {x:12,z:-24,w:14,d:12,floors:8,style:5,name:"Central Plaza"},
+ {x:31,z:-18,w:12,d:13,floors:6,style:3,name:"Seaview Apartments"},
+ {x:-31,z:-3,w:11,d:10,floors:4,style:4,name:"Market Hall"},
+ {x:-12,z:-5,w:10,d:10,floors:3,style:1,name:"Corner Store"},
+ {x:8,z:-5,w:12,d:11,floors:4,style:6,name:"City Hotel"},
+ {x:29,z:3,w:13,d:11,floors:5,style:0,name:"North Residences"},
+ {x:-29,z:17,w:12,d:11,floors:3,style:3,name:"Fire Station"},
+ {x:-8,z:17,w:14,d:12,floors:4,style:2,name:"Shopping Arcade"},
+ {x:14,z:20,w:12,d:12,floors:3,style:1,name:"Community Center"},
+ {x:34,z:23,w:11,d:10,floors:4,style:5,name:"Hilltop Apartments"},
+ {x:-47,z:-25,w:10,d:10,floors:2,style:4,name:"Harbor Warehouse"},
+ {x:49,z:-2,w:11,d:12,floors:3,style:6,name:"Coastal Clinic"},
+ {x:-48,z:35,w:12,d:11,floors:2,style:0,name:"Outpost Lodge"},
+ {x:47,z:39,w:12,d:10,floors:2,style:3,name:"Ranger Station"}
+];
+for(const spec of buildingSpecs)buildings.push(addBuilding(spec));
+// Street grid, sidewalks, streetlights and planted public spaces.
+const roadMat=material(0x343c43),sidewalkMat=material(0x969b9b),lineMat=material(0xe3d9a8);
+function road(x,z,w,d){
+ const y=terrainHeight(x,z)+.08;
+ const r=new THREE.Mesh(new THREE.BoxGeometry(w,.16,d),roadMat);
+ r.position.set(x,y,z);r.receiveShadow=true;scene.add(r);
+}
+road(0,-12,82,7);road(0,7,82,7);road(-18,0,7,58);road(17,0,7,58);
+road(0,34,76,6);road(-42,0,6,72);road(42,4,6,65);
+for(let x=-36;x<=36;x+=9){
+ const dash=new THREE.Mesh(new THREE.BoxGeometry(3,.025,.16),lineMat);
+ dash.position.set(x,terrainHeight(x,-12)+.18,-12);scene.add(dash);
+}
+for(let i=0;i<24;i++){
+ const a=i/24*Math.PI*2,r=66+(i%3)*3;
+ tree(Math.cos(a)*r,Math.sin(a)*r,.75+(i%3)*.12);
+}
+for(const [x,z] of [[-38,-40],[39,-38],[-42,48],[40,52],[-57,0],[57,18]]){
+ const pole=addBox(scene,x,terrainHeight(x,z),z,.18,5,.18,dark);
+ const lamp=new THREE.Mesh(new THREE.BoxGeometry(.75,.16,.35),material(0xf4e6b5));
+ lamp.position.set(x,terrainHeight(x,z)+5.05,z);scene.add(lamp);
+}
 // Humanoid skeleton rig. Mesh pieces are attached to bones so joints can animate independently.
 const player=new THREE.Group();scene.add(player);
 const cloth=material(0x354b5d),clothLight=material(0x536a78),trim=material(0xb08a55),bootMat=material(0x242c32),gloveMat=material(0x343d43),skinMat=material(0xc88f6c),hairMat=material(0x302a28),eyeMat=material(0x20272c),packMat=material(0x394d43);
