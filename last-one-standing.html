@@ -174,7 +174,7 @@ arms.forEach((arm,i)=>{
  wrists[i].rotation.x=THREE.MathUtils.damp(wrists[i].rotation.x,lowProfile?-.18:0,10,dt);
 });
 player.scale.y=THREE.MathUtils.damp(player.scale.y,1-landing*.08,16,dt);
-const horizontalSpeed=Math.hypot(velocity.x,velocity.z);document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
+document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
 const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);const distance=7.5;const offset=new THREE.Vector3(Math.sin(yaw)*distance,2.5+pitch*4,Math.cos(yaw)*distance);const desiredCamera=target.clone().add(offset);camera.position.lerp(desiredCamera,1-Math.exp(-7*dt));camera.lookAt(target);
 renderer.render(scene,camera);
 }
