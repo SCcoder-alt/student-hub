@@ -13,7 +13,7 @@
 <div class="hud"><div class="pill"><small>LAST ONE STANDING</small>Movement test island</div><div class="pill" id="speed">0 m/s</div></div>
 <a class="back" href="index.html#arcade">← HUB ARCADE</a>
 <div class="crosshair"></div>
-<div class="help"><b>CONTROLS</b><br>WASD / arrows: move · Shift: sprint · Space: jump<br>C: crouch · Ctrl while sprinting: slide<br>Move mouse: aim marker follows cursor · Drag: rotate camera<br><span style="color:#9fb5c9">Prototype 01 — movement, camera, jumping and solid obstacles. Multiplayer is not connected yet.</span></div>
+<div class="help"><b>CONTROLS</b><br>WASD / arrows: move · Shift: sprint · Space: jump<br>C: crouch · Ctrl while sprinting: slide<br>Move mouse: aim marker follows cursor · Drag: rotate camera · R: show rig<br><span style="color:#9fb5c9">Prototype 01 — movement, camera, jumping and solid obstacles. Multiplayer is not connected yet.</span></div>
 <div class="status" id="state">Ready · On foot</div>
 <div class="mobile"><div class="pad"><button class="up" data-key="KeyW">▲</button><button class="left" data-key="KeyA">◀</button><button class="down" data-key="KeyS">▼</button><button class="right" data-key="KeyD">▶</button></div><button class="jump" data-key="Space">JUMP</button></div>
 <script type="module">
@@ -63,7 +63,7 @@ for(const x of [-.105,.105]){
  part(headBone,new THREE.SphereGeometry(.055,8,8),skinMat,[x*2.35,.045,.005]);
 }
 part(headBone,new THREE.SphereGeometry(.035,8,8),skinMat,[0,.015,.255]);
-const legs=[],knees=[],arms=[],elbows=[],boneList=[hips,spine,neck,headBone];
+const legs=[],knees=[],ankles=[],arms=[],elbows=[],wrists=[],boneList=[hips,spine,neck,headBone];
 for(const side of [-1,1]){
  const hip=new THREE.Bone();hip.name=side<0?"LeftHip":"RightHip";hip.position.set(side*.22,-.03,0);hips.add(hip);legs.push(hip);boneList.push(hip);
  limb(hip,.17,.39,pants,[0,-.29,0]);
@@ -72,19 +72,25 @@ for(const side of [-1,1]){
  part(hip,new THREE.BoxGeometry(.27,.18,.06),trim,[0,-.53,.17]);
  const knee=new THREE.Bone();knee.name=side<0?"LeftKnee":"RightKnee";knee.position.y=-.53;hip.add(knee);knees.push(knee);boneList.push(knee);
  part(knee,new THREE.CapsuleGeometry(.125,.31,4,8),pants,[0,-.25,0]);
- part(knee,new THREE.BoxGeometry(.29,.17,.43),bootMat,[0,-.49,.075]);
- part(knee,new THREE.BoxGeometry(.3,.045,.4),gloveMat,[0,-.58,.075]);
+ const ankle=new THREE.Bone();ankle.name=side<0?"LeftAnkle":"RightAnkle";ankle.position.y=-.49;knee.add(ankle);ankles.push(ankle);boneList.push(ankle);
+ part(ankle,new THREE.BoxGeometry(.29,.17,.43),bootMat,[0,0,.075]);
+ part(ankle,new THREE.BoxGeometry(.3,.045,.4),gloveMat,[0,-.09,.075]);
  const shoulder=new THREE.Bone();shoulder.name=side<0?"LeftShoulder":"RightShoulder";shoulder.position.set(side*.46,.39,0);spine.add(shoulder);arms.push(shoulder);boneList.push(shoulder);
  limb(shoulder,.145,.34,clothLight,[side*.025,-.27,0]);
  part(shoulder,new THREE.BoxGeometry(.32,.16,.32),trim,[side*.025,-.48,.015]);
  const elbow=new THREE.Bone();elbow.name=side<0?"LeftElbow":"RightElbow";elbow.position.set(side*.025,-.52,0);shoulder.add(elbow);elbows.push(elbow);boneList.push(elbow);
  part(elbow,new THREE.SphereGeometry(.15,10,8),cloth,[0,0,0]);
  limb(elbow,.115,.31,cloth,[side*.01,-.24,.015]);
- part(elbow,new THREE.BoxGeometry(.24,.18,.24),gloveMat,[side*.01,-.5,.045]);
+ const wrist=new THREE.Bone();wrist.name=side<0?"LeftWrist":"RightWrist";wrist.position.set(side*.01,-.5,.045);elbow.add(wrist);wrists.push(wrist);boneList.push(wrist);
+ part(wrist,new THREE.BoxGeometry(.24,.18,.24),gloveMat,[0,0,0]);
+ part(wrist,new THREE.BoxGeometry(.19,.1,.17),clothLight,[0,-.12,.015]);
 }
 const rigSkeleton=new THREE.Skeleton(boneList);
+// Optional armature overlay for checking joint placement (press R).
+const rigHelper=new THREE.SkeletonHelper(player);rigHelper.visible=false;rigHelper.material.depthTest=false;rigHelper.material.transparent=true;rigHelper.material.opacity=.9;scene.add(rigHelper);
+let showRig=false;
 player.position.set(0,1.02,0);
-const keys=new Set();addEventListener("keydown",e=>{if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();keys.add(e.code);});addEventListener("keyup",e=>keys.delete(e.code));addEventListener("blur",()=>keys.clear());
+const keys=new Set();addEventListener("keydown",e=>{if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();if(e.code==="KeyR"&&!e.repeat){showRig=!showRig;rigHelper.visible=showRig;}keys.add(e.code);});addEventListener("keyup",e=>keys.delete(e.code));addEventListener("blur",()=>keys.clear());
 document.querySelectorAll("[data-key]").forEach(b=>{const k=b.dataset.key;b.addEventListener("pointerdown",e=>{e.preventDefault();keys.add(k);b.setPointerCapture(e.pointerId)});for(const ev of ["pointerup","pointercancel","lostpointercapture"])b.addEventListener(ev,()=>keys.delete(k));});
 let yaw=0,pitch=.22,dragging=false,lastX=0,lastY=0;
 const crosshair=document.querySelector(".crosshair");
@@ -122,7 +128,7 @@ if(moving){const target=Math.atan2(velocity.x,velocity.z);let diff=Math.atan2(Ma
 legs.forEach((leg,i)=>{const phase=walkPhase+(i===0?Math.PI:0);const swing=moving?Math.sin(phase)*(sprint?.72:.48):0;leg.rotation.x=THREE.MathUtils.damp(leg.rotation.x,swing,12,dt);knees[i].rotation.x=THREE.MathUtils.damp(knees[i].rotation.x,moving?Math.max(0,-Math.sin(phase))*(sprint?.85:.48):0,12,dt);});arms.forEach((arm,i)=>{const phase=walkPhase+(i===0?Math.PI:0);const swing=moving?Math.sin(phase+(sprint?0:Math.PI))*(sprint?.52:.3):0;arm.rotation.x=THREE.MathUtils.damp(arm.rotation.x,swing,12,dt);arm.rotation.z=THREE.MathUtils.damp(arm.rotation.z,(i===0?-.08:.08)+(lowProfile?.45:0),10,dt);elbows[i].rotation.x=THREE.MathUtils.damp(elbows[i].rotation.x,moving?-.12:0,10,dt);});spine.rotation.x=THREE.MathUtils.damp(spine.rotation.x,lowProfile?.42:(crouch?.12:0),10,dt);
 const horizontalSpeed=Math.hypot(velocity.x,velocity.z);document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
 const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);const distance=7.5;const offset=new THREE.Vector3(Math.sin(yaw)*distance,2.5+pitch*4,Math.cos(yaw)*distance);const desiredCamera=target.clone().add(offset);camera.position.lerp(desiredCamera,1-Math.exp(-7*dt));camera.lookAt(target);
-renderer.render(scene,camera);
+rigHelper.update();renderer.render(scene,camera);
 }
 requestAnimationFrame(animate);
 addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
