@@ -68,7 +68,7 @@ if(keys.has("Space")&&onGround){verticalVelocity=8.1;onGround=false;}
 verticalVelocity-=22*dt;player.position.y+=verticalVelocity*dt;
 if(player.position.y<=1.02){player.position.y=1.02;verticalVelocity=0;onGround=true;}
 const moving=Math.hypot(velocity.x,velocity.z)>.25;if(moving){const target=Math.atan2(velocity.x,velocity.z);let diff=Math.atan2(Math.sin(target-player.rotation.y),Math.cos(target-player.rotation.y));player.rotation.y+=diff*Math.min(1,dt*12);walkPhase+=dt*(sprint?13:9);}
-player.children.forEach((c,i)=>{if(i>=4&&i<=5)c.rotation.x=moving?Math.sin(walkPhase+(i===4?Math.PI:0))*.45:0;});
+player.children.forEach((c,i)=>{if(i===3||i===4)c.rotation.x=moving?Math.sin(walkPhase+(i===4?Math.PI:0))*.45:0;if(i===5||i===6)c.rotation.x=moving?Math.sin(walkPhase+(i===5?Math.PI:0))*.22:0;});
 const horizontalSpeed=Math.hypot(velocity.x,velocity.z);document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(onGround?"On foot":"Airborne")+" · "+(sprint&&moving?"Sprinting":moving?"Moving":"Standing");
 const target=new THREE.Vector3(player.position.x,player.position.y+1.45,player.position.z);const distance=7.5;const offset=new THREE.Vector3(Math.sin(yaw)*distance,2.5+pitch*4,Math.cos(yaw)*distance);const desiredCamera=target.clone().add(offset);camera.position.lerp(desiredCamera,1-Math.exp(-7*dt));camera.lookAt(target);
 renderer.render(scene,camera);
