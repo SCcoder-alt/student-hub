@@ -16,12 +16,16 @@
 <div class="help"><b>CONTROLS</b><br>WASD / arrows: move · Shift: sprint · Space: jump<br>C: crouch · Ctrl while sprinting: slide<br>Move mouse: aim marker follows cursor · Drag: rotate camera · R: show rig<br><span style="color:#9fb5c9">Prototype 01 — movement, camera, jumping and solid obstacles. Multiplayer is not connected yet.</span></div>
 <div class="status" id="state">Ready · On foot</div>
 <div class="mobile"><div class="pad"><button class="up" data-key="KeyW">▲</button><button class="left" data-key="KeyA">◀</button><button class="down" data-key="KeyS">▼</button><button class="right" data-key="KeyD">▶</button></div><button class="jump" data-key="Space">JUMP</button></div>
+<script>
+window.addEventListener("error",e=>{const box=document.createElement("div");box.style.cssText="position:fixed;z-index:99;left:14px;right:14px;top:120px;padding:14px 16px;border-radius:12px;background:#4b1820;color:white;font:13px/1.5 system-ui;white-space:pre-wrap";box.textContent="3D scene error: "+(e.message||"The game module failed to load.");document.body.appendChild(box);});
+window.addEventListener("unhandledrejection",e=>{const box=document.createElement("div");box.style.cssText="position:fixed;z-index:99;left:14px;right:14px;top:120px;padding:14px 16px;border-radius:12px;background:#4b1820;color:white;font:13px/1.5 system-ui;white-space:pre-wrap";box.textContent="3D scene error: "+String(e.reason||"Unknown module error");document.body.appendChild(box);});
+</script>
 <script type="module">
-import * as THREE from "https://esm.sh/three@0.170.0";
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js";
 const root=document.querySelector("#game");
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x9bc9df);scene.fog=new THREE.Fog(0x9bc9df,85,190);
 const camera=new THREE.PerspectiveCamera(68,innerWidth/innerHeight,.1,400);
-const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;root.appendChild(renderer.domElement);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.domElement.style.width="100%";renderer.domElement.style.height="100%";root.appendChild(renderer.domElement);
 scene.add(new THREE.HemisphereLight(0xe6f5ff,0x536b4d,2));
 const sun=new THREE.DirectionalLight(0xfff2d8,2.3);sun.position.set(-35,65,25);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);scene.add(sun);
 const material=(c,r=.85)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
