@@ -238,7 +238,7 @@ for(const [x,z] of [[-38,-40],[39,-38],[-42,48],[40,52],[-57,0],[57,18]]){
 }
 // Humanoid skeleton rig. Mesh pieces are attached to bones so joints can animate independently.
 const player=new THREE.Group();scene.add(player);
-const cloth=material(0x354b5d),clothLight=material(0x536a78),trim=material(0xb08a55),bootMat=material(0x242c32),gloveMat=material(0x343d43),skinMat=material(0xc88f6c),hairMat=material(0x302a28),eyeMat=material(0x20272c),packMat=material(0x394d43);
+const cloth=material(0x354b5d),clothLight=material(0x536a78),playerTrim=material(0xb08a55),bootMat=material(0x242c32),gloveMat=material(0x343d43),skinMat=material(0xc88f6c),hairMat=material(0x302a28),eyeMat=material(0x20272c),packMat=material(0x394d43);
 function part(parent,geo,mat,pos,rot){const m=new THREE.Mesh(geo,mat);m.position.set(...pos);if(rot)m.rotation.set(...rot);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
 function limb(parent,r,len,mat,pos){return part(parent,new THREE.CapsuleGeometry(r,len,5,9),mat,pos);}
 const hips=new THREE.Bone();hips.name="Hips";hips.position.y=.98;player.add(hips);
@@ -246,18 +246,18 @@ const spine=new THREE.Bone();spine.name="Spine";spine.position.y=.5;hips.add(spi
 limb(spine,.39,.62,cloth,[0,.02,0]);
 part(spine,new THREE.BoxGeometry(.68,.25,.39),pants,[0,-.48,0]);
 part(spine,new THREE.BoxGeometry(.78,.78,.12),clothLight,[0,.02,.245]);
-part(spine,new THREE.BoxGeometry(.7,.1,.42),trim,[0,-.43,.015]);
-part(spine,new THREE.BoxGeometry(.15,.48,.035),trim,[0,.02,.31]);
+part(spine,new THREE.BoxGeometry(.7,.1,.42),playerTrim,[0,-.43,.015]);
+part(spine,new THREE.BoxGeometry(.15,.48,.035),playerTrim,[0,.02,.31]);
 part(spine,new THREE.BoxGeometry(.18,.28,.22),packMat,[0,.12,-.31]);
 part(spine,new THREE.BoxGeometry(.62,.48,.055),cloth,[0,.02,.30]);
-part(spine,new THREE.BoxGeometry(.055,.68,.065),trim,[-.24,.02,.335],[0,0,-.12]);
-part(spine,new THREE.BoxGeometry(.055,.68,.065),trim,[.24,.02,.335],[0,0,.12]);
+part(spine,new THREE.BoxGeometry(.055,.68,.065),playerTrim,[-.24,.02,.335],[0,0,-.12]);
+part(spine,new THREE.BoxGeometry(.055,.68,.065),playerTrim,[.24,.02,.335],[0,0,.12]);
 for(const side of [-1,1]){
  part(spine,new THREE.BoxGeometry(.22,.2,.075),packMat,[side*.22,-.19,.36]);
- part(spine,new THREE.BoxGeometry(.18,.035,.085),trim,[side*.22,-.11,.405]);
+ part(spine,new THREE.BoxGeometry(.18,.035,.085),playerTrim,[side*.22,-.11,.405]);
  part(spine,new THREE.BoxGeometry(.16,.2,.12),packMat,[side*.39,-.34,-.02]);
 }
-part(spine,new THREE.BoxGeometry(.12,.12,.035),trim,[0,-.43,.245]);
+part(spine,new THREE.BoxGeometry(.12,.12,.035),playerTrim,[0,-.43,.245]);
 part(spine,new THREE.BoxGeometry(.46,.1,.08),packMat,[0,.48,-.27]);
 const neck=new THREE.Bone();neck.name="Neck";neck.position.y=.48;spine.add(neck);
 part(neck,new THREE.CylinderGeometry(.12,.14,.2,10),skinMat,[0,.04,0]);
@@ -276,11 +276,11 @@ for(const side of [-1,1]){
  limb(hip,.17,.39,pants,[0,-.29,0]);
  part(hip,new THREE.BoxGeometry(.31,.2,.34),clothLight,[0,-.49,.005]);
  part(hip,new THREE.SphereGeometry(.17,10,8),pants,[0,-.53,.025]);
- part(hip,new THREE.BoxGeometry(.27,.18,.06),trim,[0,-.53,.17]);
+ part(hip,new THREE.BoxGeometry(.27,.18,.06),playerTrim,[0,-.53,.17]);
  const knee=new THREE.Bone();knee.name=side<0?"LeftKnee":"RightKnee";knee.position.y=-.53;hip.add(knee);knees.push(knee);boneList.push(knee);
  part(knee,new THREE.CapsuleGeometry(.125,.31,4,8),pants,[0,-.25,0]);
 part(knee,new THREE.BoxGeometry(.27,.19,.09),clothLight,[0,-.22,.105]);
-part(knee,new THREE.BoxGeometry(.21,.035,.025),trim,[0,-.22,.157]);
+part(knee,new THREE.BoxGeometry(.21,.035,.025),playerTrim,[0,-.22,.157]);
  const ankle=new THREE.Bone();ankle.name=side<0?"LeftAnkle":"RightAnkle";ankle.position.y=-.49;knee.add(ankle);ankles.push(ankle);boneList.push(ankle);
  // Contact point at the underside of each boot; follows every leg animation.
  const soleContact=new THREE.Object3D();soleContact.position.set(0,-.087,.075);ankle.add(soleContact);footContacts.push(soleContact);
@@ -288,12 +288,12 @@ part(knee,new THREE.BoxGeometry(.21,.035,.025),trim,[0,-.22,.157]);
  part(ankle,new THREE.BoxGeometry(.3,.045,.4),gloveMat,[0,-.09,.075]);
  const shoulder=new THREE.Bone();shoulder.name=side<0?"LeftShoulder":"RightShoulder";shoulder.position.set(side*.46,.39,0);spine.add(shoulder);arms.push(shoulder);boneList.push(shoulder);
  limb(shoulder,.145,.34,clothLight,[side*.025,-.27,0]);
- part(shoulder,new THREE.BoxGeometry(.32,.16,.32),trim,[side*.025,-.48,.015]);
+ part(shoulder,new THREE.BoxGeometry(.32,.16,.32),playerTrim,[side*.025,-.48,.015]);
  const elbow=new THREE.Bone();elbow.name=side<0?"LeftElbow":"RightElbow";elbow.position.set(side*.025,-.52,0);shoulder.add(elbow);elbows.push(elbow);boneList.push(elbow);
  part(elbow,new THREE.SphereGeometry(.15,10,8),cloth,[0,0,0]);
  limb(elbow,.115,.31,cloth,[side*.01,-.24,.015]);
 part(elbow,new THREE.BoxGeometry(.24,.25,.09),packMat,[side*.01,-.25,.13]);
-part(elbow,new THREE.BoxGeometry(.18,.035,.025),trim,[side*.01,-.25,.18]);
+part(elbow,new THREE.BoxGeometry(.18,.035,.025),playerTrim,[side*.01,-.25,.18]);
  const wrist=new THREE.Bone();wrist.name=side<0?"LeftWrist":"RightWrist";wrist.position.set(side*.01,-.5,.045);elbow.add(wrist);wrists.push(wrist);boneList.push(wrist);
  part(wrist,new THREE.BoxGeometry(.24,.18,.24),gloveMat,[0,0,0]);
  part(wrist,new THREE.BoxGeometry(.19,.1,.17),clothLight,[0,-.12,.015]);
