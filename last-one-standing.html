@@ -55,7 +55,7 @@ renderer.domElement.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse
 renderer.domElement.addEventListener("pointermove",e=>{if(!dragging)return;yaw-=(e.clientX-lastX)*.006;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lastY)*.003,-.12,.65);lastX=e.clientX;lastY=e.clientY;});
 renderer.domElement.addEventListener("pointerup",()=>dragging=false);renderer.domElement.addEventListener("pointercancel",()=>dragging=false);
 let verticalVelocity=0,onGround=true,velocity=new THREE.Vector3(),lastTime=performance.now(),walkPhase=0;
-let slideTimer=0,slideDirection=new THREE.Vector3();
+let slideTimer=0,slideDirection=new THREE.Vector3(),slideWasPressed=false;
 const radius=.55,clock=new THREE.Clock();
 function collides(x,z){if(Math.hypot(x,z)>81)return true;for(const o of obstacles){const dx=Math.max(Math.abs(x-o.x)-o.hx,0),dz=Math.max(Math.abs(z-o.z)-o.hz,0);if(dx*dx+dz*dz<radius*radius)return true;}return false;}
 function moveAxis(dx,dz){let nx=player.position.x+dx,nz=player.position.z+dz;if(!collides(nx,player.position.z))player.position.x=nx;if(!collides(player.position.x,nz))player.position.z=nz;}
@@ -64,11 +64,11 @@ const forward=(keys.has("KeyW")||keys.has("ArrowUp")?1:0)-(keys.has("KeyS")||key
 const sideways=(keys.has("KeyD")||keys.has("ArrowRight")?1:0)-(keys.has("KeyA")||keys.has("ArrowLeft")?1:0);
 const sprint=keys.has("ShiftLeft")||keys.has("ShiftRight");
 const crouch=keys.has("KeyC");
-const sliding=slideTimer>0;
 const maxSpeed=crouch?3.2:(sprint?10:6.2);
 const input=new THREE.Vector3(sideways,0,forward);if(input.lengthSq()>1)input.normalize();
 const slidePressed=keys.has("ControlLeft")||keys.has("ControlRight");
-if(slidePressed&&sprint&&onGround&&!sliding&&input.lengthSq()>.1){slideTimer=.78;slideDirection.set(velocity.x,0,velocity.z);if(slideDirection.lengthSq()<1)slideDirection.set(input.x,0,input.z).applyAxisAngle(new THREE.Vector3(0,1,0),-yaw);slideDirection.normalize();}
+if(slidePressed&&!slideWasPressed&&sprint&&onGround&&input.lengthSq()>.1){slideTimer=.78;slideDirection.set(velocity.x,0,velocity.z);if(slideDirection.lengthSq()<1)slideDirection.set(Math.cos(yaw)*input.x-Math.sin(yaw)*input.z,0,-Math.sin(yaw)*input.x-Math.cos(yaw)*input.z);slideDirection.normalize();}
+slideWasPressed=slidePressed;
 const cameraForward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));const cameraRight=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
 const desired=new THREE.Vector3().addScaledVector(cameraRight,input.x).addScaledVector(cameraForward,input.z).multiplyScalar(maxSpeed);
 if(slideTimer>0){slideTimer=Math.max(0,slideTimer-dt);velocity.x=THREE.MathUtils.damp(velocity.x,slideDirection.x*13,2.0,dt);velocity.z=THREE.MathUtils.damp(velocity.z,slideDirection.z*13,2.0,dt);}
@@ -78,11 +78,11 @@ if(keys.has("Space")&&onGround){verticalVelocity=8.1;onGround=false;}
 verticalVelocity-=22*dt;player.position.y+=verticalVelocity*dt;
 if(player.position.y<=1.02){player.position.y=1.02;verticalVelocity=0;onGround=true;}
 const moving=Math.hypot(velocity.x,velocity.z)>.25;
-const lowProfile=slideTimer>0;player.scale.y=THREE.MathUtils.damp(player.scale.y,lowProfile?.48:(crouch?.72:1),14,dt);
+const lowProfile=slideTimer>0;player.scale.y=THREE.MathUtils.damp(player.scale.y,lowProfile ? .48 : (crouch ? .72 : 1),14,dt);
 if(moving){const target=Math.atan2(velocity.x,velocity.z);let diff=Math.atan2(Math.sin(target-player.rotation.y),Math.cos(target-player.rotation.y));player.rotation.y+=diff*Math.min(1,dt*12);walkPhase+=dt*(sprint?13:9);}
 player.children.forEach((c,i)=>{if(i===3||i===4)c.rotation.x=moving?Math.sin(walkPhase+(i===4?Math.PI:0))*.45:0;if(i===5||i===6)c.rotation.x=moving?Math.sin(walkPhase+(i===5?Math.PI:0))*.22:0;});
 const horizontalSpeed=Math.hypot(velocity.x,velocity.z);document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
-const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile?.85:crouch?1.12:1.45),player.position.z);const distance=7.5;const offset=new THREE.Vector3(Math.sin(yaw)*distance,2.5+pitch*4,Math.cos(yaw)*distance);const desiredCamera=target.clone().add(offset);camera.position.lerp(desiredCamera,1-Math.exp(-7*dt));camera.lookAt(target);
+const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);const distance=7.5;const offset=new THREE.Vector3(Math.sin(yaw)*distance,2.5+pitch*4,Math.cos(yaw)*distance);const desiredCamera=target.clone().add(offset);camera.position.lerp(desiredCamera,1-Math.exp(-7*dt));camera.lookAt(target);
 renderer.render(scene,camera);
 }
 requestAnimationFrame(animate);
