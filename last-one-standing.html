@@ -189,8 +189,8 @@ function addBuilding(spec){
   obstacles.push({x:x+side*(w/2-wall/2),z,hx:wall*.62,hz:d/2});
  }
  obstacles.push({x,z:z-d/2+wall/2,hx:w/2,hz:wall*.62});
- obstacles.push({x:x-w/2+wall/2,z:z+d/2-wall/2,hx:(w-door)/2,hz:wall*.62});
- obstacles.push({x:x+w/2-wall/2,z:z+d/2-wall/2,hx:(w-door)/2,hz:wall*.62});
+ obstacles.push({x:x-(door/2+(w-door)/4),z:z+d/2-wall/2,hx:(w-door)/4,hz:wall*.62});
+ obstacles.push({x:x+(door/2+(w-door)/4),z:z+d/2-wall/2,hx:(w-door)/4,hz:wall*.62});
  return {name,x,z,w,d,floors,height:totalH};
 }
 // Harbor Town — a compact downtown core with towers, shops and apartments.
