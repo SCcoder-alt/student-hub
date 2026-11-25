@@ -41,7 +41,7 @@ const terrainGeometry=new THREE.CircleGeometry(85,160);
 const terrainPositions=terrainGeometry.attributes.position;
 const terrainColors=[];
 for(let i=0;i<terrainPositions.count;i++){
- const x=terrainPositions.getX(i),y=terrainPositions.getY(i),h=terrainHeight(x,y);
+ const x=terrainPositions.getX(i),y=terrainPositions.getY(i),h=terrainHeight(x,-y);
  terrainPositions.setZ(i,h-1.02);
  const shade=THREE.MathUtils.clamp(.82+(h-1.02)*.035+Math.sin(x*.19+Math.cos(y*.14))*.035,.72,1.12);
  terrainColors.push(.30*shade,.49*shade,.25*shade);
@@ -53,7 +53,7 @@ const ground=new THREE.Mesh(terrainGeometry,terrainMat);ground.rotation.x=-Math.
 const beach=new THREE.Mesh(new THREE.RingGeometry(83,90,96),sand);beach.rotation.x=-Math.PI/2;beach.position.y=1.01;scene.add(beach);
 const obstacles=[];
 function block(x,z,w,h,d,mat=rock,y=1.02){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y+h/2,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);obstacles.push({x,z,hx:w/2,hz:d/2});return m;}
-function tree(x,z,s=1){const g=new THREE.Group();const t=new THREE.Mesh(new THREE.CylinderGeometry(.28*s,.4*s,2.8*s,8),wood);t.position.y=1.4*s;t.castShadow=true;g.add(t);for(let i=0;i<3;i++){const c=new THREE.Mesh(new THREE.ConeGeometry((2.1-i*.35)*s,2.6*s,8),material(i===1?0x286b42:0x347d4c));c.position.y=(3+i*1.1)*s;c.castShadow=true;g.add(c);}g.position.set(x,1,z);scene.add(g);obstacles.push({x,z,hx:.65*s,hz:.65*s});}
+function tree(x,z,s=1){const g=new THREE.Group();const t=new THREE.Mesh(new THREE.CylinderGeometry(.28*s,.4*s,2.8*s,8),wood);t.position.y=1.4*s;t.castShadow=true;g.add(t);for(let i=0;i<3;i++){const c=new THREE.Mesh(new THREE.ConeGeometry((2.1-i*.35)*s,2.6*s,8),material(i===1?0x286b42:0x347d4c));c.position.y=(3+i*1.1)*s;c.castShadow=true;g.add(c);}g.position.set(x,terrainHeight(x,z),z);scene.add(g);obstacles.push({x,z,hx:.65*s,hz:.65*s});}
 for(let i=0;i<34;i++){const a=i/34*Math.PI*2,r=57+(i%4)*5;tree(Math.cos(a)*r,Math.sin(a)*r,.8+(i%3)*.14);}
 block(-18,-12,12,5,2,wood);block(-18,-18,2,5,10,wood);block(-7,-17,2,5,10,wood);block(19,-13,10,4,3,blue);block(19,-5,3,4,14,blue);block(34,13,12,3,3,white);block(-34,14,9,4,9,rock);block(-7,31,16,3,3,rock);block(8,30,3,3,12,rock);
 // Low practice barriers and a simple raised platform.
@@ -123,7 +123,8 @@ const rigSkeleton=new THREE.Skeleton(boneList);
 // Optional armature overlay for checking joint placement (press R).
 const rigHelper=new THREE.SkeletonHelper(player);rigHelper.visible=false;rigHelper.material.depthTest=false;rigHelper.material.transparent=true;rigHelper.material.opacity=.9;scene.add(rigHelper);
 let showRig=false;
-player.position.set(0,terrainHeight(0,0),0);
+const PLAYER_FOOT_OFFSET=1.14;
+player.position.set(0,terrainHeight(0,0)+PLAYER_FOOT_OFFSET,0);
 const keys=new Set();addEventListener("keydown",e=>{if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();if(e.code==="KeyR"&&!e.repeat){showRig=!showRig;rigHelper.visible=showRig;}keys.add(e.code);});addEventListener("keyup",e=>keys.delete(e.code));addEventListener("blur",()=>keys.clear());
 document.querySelectorAll("[data-key]").forEach(b=>{const k=b.dataset.key;b.addEventListener("pointerdown",e=>{e.preventDefault();keys.add(k);b.setPointerCapture(e.pointerId)});for(const ev of ["pointerup","pointercancel","lostpointercapture"])b.addEventListener(ev,()=>keys.delete(k));});
 let yaw=0,pitch=.12,dragging=false,lastX=0,lastY=0;
@@ -155,8 +156,9 @@ else{const response=input.lengthSq()?11:8;velocity.x=THREE.MathUtils.damp(veloci
 moveAxis(velocity.x*dt,velocity.z*dt);
 if(keys.has("Space")&&onGround){verticalVelocity=8.1;onGround=false;}
 verticalVelocity-=22*dt;player.position.y+=verticalVelocity*dt;
-const floorY=terrainHeight(player.position.x,player.position.z);
-if(player.position.y<=floorY){player.position.y=floorY;verticalVelocity=0;onGround=true;}
+const floorY=terrainHeight(player.position.x,player.position.z)+PLAYER_FOOT_OFFSET;
+if(onGround){player.position.y=floorY;verticalVelocity=0;}
+else if(player.position.y<=floorY){player.position.y=floorY;verticalVelocity=0;onGround=true;}
 const horizontalSpeed=Math.hypot(velocity.x,velocity.z);
 const moving=horizontalSpeed>.25;
 const lowProfile=slideTimer>0;
@@ -206,7 +208,7 @@ arms.forEach((arm,i)=>{
 });
 player.scale.y=THREE.MathUtils.damp(player.scale.y,1-landing*.08,16,dt);
 document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
-const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);
+const target=new THREE.Vector3(player.position.x,player.position.y-PLAYER_FOOT_OFFSET+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);
 const distance=7.5,cp=Math.cos(pitch);
 const offset=new THREE.Vector3(Math.sin(yaw)*cp*distance,Math.sin(pitch)*distance,Math.cos(yaw)*cp*distance);
 const desiredCamera=target.clone().add(offset);
