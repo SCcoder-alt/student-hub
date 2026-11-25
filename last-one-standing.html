@@ -123,12 +123,11 @@ const rigSkeleton=new THREE.Skeleton(boneList);
 // Optional armature overlay for checking joint placement (press R).
 const rigHelper=new THREE.SkeletonHelper(player);rigHelper.visible=false;rigHelper.material.depthTest=false;rigHelper.material.transparent=true;rigHelper.material.opacity=.9;scene.add(rigHelper);
 let showRig=false;
-// Measure the actual rig's lowest point instead of guessing a foot offset.
-// This keeps the boot soles on the terrain even if the character proportions change.
+// Place the rig using its actual lowest point. The animated-foot correction
+// below keeps this aligned as the pose changes.
 player.updateMatrixWorld(true);
-const rigBounds=new THREE.Box3().setFromObject(player);
-const PLAYER_FOOT_OFFSET=Math.max(0,-rigBounds.min.y)+.025;
-player.position.set(0,terrainHeight(0,0)+PLAYER_FOOT_OFFSET,0);
+const initialRigBounds=new THREE.Box3().setFromObject(player);
+player.position.set(0,terrainHeight(0,0)-initialRigBounds.min.y+.025,0);
 const keys=new Set();addEventListener("keydown",e=>{if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();if(e.code==="KeyR"&&!e.repeat){showRig=!showRig;rigHelper.visible=showRig;}keys.add(e.code);});addEventListener("keyup",e=>keys.delete(e.code));addEventListener("blur",()=>keys.clear());
 document.querySelectorAll("[data-key]").forEach(b=>{const k=b.dataset.key;b.addEventListener("pointerdown",e=>{e.preventDefault();keys.add(k);b.setPointerCapture(e.pointerId)});for(const ev of ["pointerup","pointercancel","lostpointercapture"])b.addEventListener(ev,()=>keys.delete(k));});
 let yaw=0,pitch=.12,dragging=false,lastX=0,lastY=0;
@@ -162,9 +161,12 @@ else{const response=input.lengthSq()?11:8;velocity.x=THREE.MathUtils.damp(veloci
 moveAxis(velocity.x*dt,velocity.z*dt);
 if(keys.has("Space")&&onGround){verticalVelocity=8.1;onGround=false;}
 verticalVelocity-=22*dt;player.position.y+=verticalVelocity*dt;
-const floorY=terrainHeight(player.position.x,player.position.z)+PLAYER_FOOT_OFFSET;
-if(onGround){player.position.y=floorY;verticalVelocity=0;}
-else if(player.position.y<=floorY){player.position.y=floorY;verticalVelocity=0;onGround=true;}
+// Collision uses the lowest point of the current rig pose, not a fixed root offset.
+player.updateMatrixWorld(true);
+let currentRigBounds=new THREE.Box3().setFromObject(player);
+const floorY=terrainHeight(player.position.x,player.position.z);
+if(onGround){player.position.y+=floorY-currentRigBounds.min.y;verticalVelocity=0;}
+else if(currentRigBounds.min.y<=floorY){player.position.y+=floorY-currentRigBounds.min.y;verticalVelocity=0;onGround=true;}
 const horizontalSpeed=Math.hypot(velocity.x,velocity.z);
 const moving=horizontalSpeed>.25;
 const lowProfile=slideTimer>0;
@@ -213,6 +215,13 @@ arms.forEach((arm,i)=>{
  wrists[i].rotation.x=THREE.MathUtils.damp(wrists[i].rotation.x,lowProfile?-.18:0,10,dt);
 });
 player.scale.y=THREE.MathUtils.damp(player.scale.y,1-landing*.08,16,dt);
+// Recheck after animation: crouching, stepping, and landing all change foot height.
+if(onGround){
+ player.updateMatrixWorld(true);
+ currentRigBounds=new THREE.Box3().setFromObject(player);
+ const animatedFloorY=terrainHeight(player.position.x,player.position.z);
+ player.position.y+=animatedFloorY-currentRigBounds.min.y;
+}
 document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
 const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);
 const distance=7.5,cp=Math.cos(pitch);
