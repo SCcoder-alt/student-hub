@@ -123,7 +123,7 @@ const rigSkeleton=new THREE.Skeleton(boneList);
 // Optional armature overlay for checking joint placement (press R).
 const rigHelper=new THREE.SkeletonHelper(player);rigHelper.visible=false;rigHelper.material.depthTest=false;rigHelper.material.transparent=true;rigHelper.material.opacity=.9;scene.add(rigHelper);
 let showRig=false;
-const PLAYER_FOOT_OFFSET=1.14;
+const PLAYER_FOOT_OFFSET=0.08;
 player.position.set(0,terrainHeight(0,0)+PLAYER_FOOT_OFFSET,0);
 const keys=new Set();addEventListener("keydown",e=>{if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();if(e.code==="KeyR"&&!e.repeat){showRig=!showRig;rigHelper.visible=showRig;}keys.add(e.code);});addEventListener("keyup",e=>keys.delete(e.code));addEventListener("blur",()=>keys.clear());
 document.querySelectorAll("[data-key]").forEach(b=>{const k=b.dataset.key;b.addEventListener("pointerdown",e=>{e.preventDefault();keys.add(k);b.setPointerCapture(e.pointerId)});for(const ev of ["pointerup","pointercancel","lostpointercapture"])b.addEventListener(ev,()=>keys.delete(k));});
@@ -208,7 +208,7 @@ arms.forEach((arm,i)=>{
 });
 player.scale.y=THREE.MathUtils.damp(player.scale.y,1-landing*.08,16,dt);
 document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
-const target=new THREE.Vector3(player.position.x,player.position.y-PLAYER_FOOT_OFFSET+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);
+const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);
 const distance=7.5,cp=Math.cos(pitch);
 const offset=new THREE.Vector3(Math.sin(yaw)*cp*distance,Math.sin(pitch)*distance,Math.cos(yaw)*cp*distance);
 const desiredCamera=target.clone().add(offset);
