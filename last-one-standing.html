@@ -103,7 +103,7 @@ renderer.domElement.addEventListener("pointerleave",()=>crosshair.style.opacity=
 renderer.domElement.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse"){dragging=true;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture(e.pointerId);}});
 renderer.domElement.addEventListener("pointermove",e=>{if(!dragging)return;yaw-=(e.clientX-lastX)*.006;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lastY)*.003,-.12,.65);lastX=e.clientX;lastY=e.clientY;});
 renderer.domElement.addEventListener("pointerup",()=>dragging=false);renderer.domElement.addEventListener("pointercancel",()=>dragging=false);
-let verticalVelocity=0,onGround=true,velocity=new THREE.Vector3(),lastTime=performance.now(),walkPhase=0;
+let verticalVelocity=0,onGround=true,velocity=new THREE.Vector3(),lastTime=performance.now(),walkPhase=0,landingPulse=0,idleClock=0;
 let slideTimer=0,slideDirection=new THREE.Vector3(),slideWasPressed=false;
 const radius=.55,clock=new THREE.Clock();
 function collides(x,z){if(Math.hypot(x,z)>81)return true;for(const o of obstacles){const dx=Math.max(Math.abs(x-o.x)-o.hx,0),dz=Math.max(Math.abs(z-o.z)-o.hz,0);if(dx*dx+dz*dz<radius*radius)return true;}return false;}
@@ -126,10 +126,54 @@ moveAxis(velocity.x*dt,velocity.z*dt);
 if(keys.has("Space")&&onGround){verticalVelocity=8.1;onGround=false;}
 verticalVelocity-=22*dt;player.position.y+=verticalVelocity*dt;
 if(player.position.y<=1.02){player.position.y=1.02;verticalVelocity=0;onGround=true;}
-const moving=Math.hypot(velocity.x,velocity.z)>.25;
-const lowProfile=slideTimer>0;player.scale.y=THREE.MathUtils.damp(player.scale.y,lowProfile ? .48 : (crouch ? .72 : 1),14,dt);
-if(moving){const target=Math.atan2(velocity.x,velocity.z);let diff=Math.atan2(Math.sin(target-player.rotation.y),Math.cos(target-player.rotation.y));player.rotation.y+=diff*Math.min(1,dt*12);walkPhase+=dt*(sprint?13:9);}
-legs.forEach((leg,i)=>{const phase=walkPhase+(i===0?Math.PI:0);const swing=moving?Math.sin(phase)*(sprint?.72:.48):0;leg.rotation.x=THREE.MathUtils.damp(leg.rotation.x,swing,12,dt);knees[i].rotation.x=THREE.MathUtils.damp(knees[i].rotation.x,moving?Math.max(0,-Math.sin(phase))*(sprint?.85:.48):0,12,dt);});arms.forEach((arm,i)=>{const phase=walkPhase+(i===0?Math.PI:0);const swing=moving?Math.sin(phase+(sprint?0:Math.PI))*(sprint?.52:.3):0;arm.rotation.x=THREE.MathUtils.damp(arm.rotation.x,swing,12,dt);arm.rotation.z=THREE.MathUtils.damp(arm.rotation.z,(i===0?-.08:.08)+(lowProfile?.45:0),10,dt);elbows[i].rotation.x=THREE.MathUtils.damp(elbows[i].rotation.x,moving?-.12:0,10,dt);});spine.rotation.x=THREE.MathUtils.damp(spine.rotation.x,lowProfile?.42:(crouch?.12:0),10,dt);
+const horizontalSpeed=Math.hypot(velocity.x,velocity.z);
+const moving=horizontalSpeed>.25;
+const lowProfile=slideTimer>0;
+const airborne=!onGround;
+idleClock+=dt;
+landingPulse=Math.max(0,landingPulse-dt*3.8);
+const landing=landingPulse;
+const moveBlend=THREE.MathUtils.clamp(horizontalSpeed/(sprint?9:5.5),0,1);
+const crouchBlend=lowProfile?1:(crouch?1:0);
+const runBlend=sprint?1:0;
+if(moving){
+ const target=Math.atan2(velocity.x,velocity.z);
+ let diff=Math.atan2(Math.sin(target-player.rotation.y),Math.cos(target-player.rotation.y));
+ player.rotation.y+=diff*Math.min(1,dt*12);
+ walkPhase+=dt*(sprint?14:9.2)*Math.max(.25,moveBlend);
+}
+const idleBreath=Math.sin(idleClock*2.1)*.012;
+hips.position.y=THREE.MathUtils.damp(hips.position.y,.98-(crouchBlend*.16)-(landing*.035),13,dt);
+hips.rotation.z=THREE.MathUtils.damp(hips.rotation.z,moving?Math.sin(walkPhase)*.025:Math.sin(idleClock*1.1)*.012,8,dt);
+hips.rotation.x=THREE.MathUtils.damp(hips.rotation.x,airborne?-.08:(lowProfile?-.18:0),10,dt);
+spine.rotation.x=THREE.MathUtils.damp(spine.rotation.x,
+ airborne?-.2:(lowProfile?.58:(crouch?.25:(moving?(sprint?-.13:-.045):idleBreath))),10,dt);
+spine.rotation.z=THREE.MathUtils.damp(spine.rotation.z,moving?-Math.sin(walkPhase)*.035:0,8,dt);
+neck.rotation.x=THREE.MathUtils.damp(neck.rotation.x,airborne?.12:(lowProfile?-.08:Math.sin(idleClock*.8)*.018),8,dt);
+headBone.rotation.x=THREE.MathUtils.damp(headBone.rotation.x,airborne?-.08:(lowProfile?.12:Math.sin(idleClock*1.25)*.018),8,dt);
+legs.forEach((leg,i)=>{
+ const phase=walkPhase+(i===0?Math.PI:0);
+ const swing=moving?Math.sin(phase)*(sprint?.78:.48):0;
+ const crouchLeg=lowProfile?.92:(crouch?.62:0);
+ const jumpLeg=airborne?-.34:0;
+ leg.rotation.x=THREE.MathUtils.damp(leg.rotation.x,swing+crouchLeg+jumpLeg,12,dt);
+ leg.rotation.z=THREE.MathUtils.damp(leg.rotation.z,(i===0?-.025:.025)+(lowProfile?(i===0?-.12:.12):0),10,dt);
+ knees[i].rotation.x=THREE.MathUtils.damp(knees[i].rotation.x,
+  (moving?Math.max(0,-Math.sin(phase))*(sprint?.95:.55):0)+(lowProfile?1.12:(crouch?.88:0))+(airborne?.28:0),12,dt);
+ ankles[i].rotation.x=THREE.MathUtils.damp(ankles[i].rotation.x,airborne?-.18:(lowProfile?-.32:(crouch?-.12:0)),10,dt);
+});
+arms.forEach((arm,i)=>{
+ const phase=walkPhase+(i===0?Math.PI:0);
+ const swing=moving?Math.sin(phase+(sprint?0:Math.PI))*(sprint?.62:.34):0;
+ const slideSpread=lowProfile?(i===0?-.3:.3):0;
+ const jumpRaise=airborne?-.42:0;
+ arm.rotation.x=THREE.MathUtils.damp(arm.rotation.x,swing+slideSpread+jumpRaise,11,dt);
+ arm.rotation.z=THREE.MathUtils.damp(arm.rotation.z,(i===0?-.08:.08)+(lowProfile?(i===0?-.28:.28):0)+(airborne?(i===0?-.12:.12):0),10,dt);
+ elbows[i].rotation.x=THREE.MathUtils.damp(elbows[i].rotation.x,
+  lowProfile?-1.05:(airborne?-.35:(moving?-.18:idleBreath*.5)),10,dt);
+ wrists[i].rotation.x=THREE.MathUtils.damp(wrists[i].rotation.x,lowProfile?-.18:0,10,dt);
+});
+player.scale.y=THREE.MathUtils.damp(player.scale.y,1-landing*.08,16,dt);
 const horizontalSpeed=Math.hypot(velocity.x,velocity.z);document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
 const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);const distance=7.5;const offset=new THREE.Vector3(Math.sin(yaw)*distance,2.5+pitch*4,Math.cos(yaw)*distance);const desiredCamera=target.clone().add(offset);camera.position.lerp(desiredCamera,1-Math.exp(-7*dt));camera.lookAt(target);
 renderer.render(scene,camera);
