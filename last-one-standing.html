@@ -13,7 +13,7 @@
 <div class="hud"><div class="pill"><small>LAST ONE STANDING</small>Movement test island</div><div class="pill" id="speed">0 m/s</div></div>
 <a class="back" href="index.html#arcade">← HUB ARCADE</a>
 <div class="crosshair"></div>
-<div class="help"><b>CONTROLS</b><br>WASD / arrows: move · Shift: sprint · Space: jump<br>C: crouch · Ctrl while sprinting: slide<br>Move mouse: aim marker follows cursor · Drag: rotate camera · R: show rig<br><span style="color:#9fb5c9">Prototype 01 — movement, camera, jumping and solid obstacles. Multiplayer is not connected yet.</span></div>
+<div class="help"><b>CONTROLS</b><br>WASD / arrows: move · Shift: sprint · Space: jump<br>C: crouch · Ctrl while sprinting: slide<br>Move mouse: aim marker follows cursor · Drag: rotate camera 360° (look up/down) · R: show rig<br><span style="color:#9fb5c9">Prototype 02 — rolling terrain, upgraded lighting and full vertical camera look. Multiplayer is not connected yet.</span></div>
 <div class="status" id="state">Ready · On foot</div>
 <div class="mobile"><div class="pad"><button class="up" data-key="KeyW">▲</button><button class="left" data-key="KeyA">◀</button><button class="down" data-key="KeyS">▼</button><button class="right" data-key="KeyD">▶</button></div><button class="jump" data-key="Space">JUMP</button></div>
 <script>
@@ -25,14 +25,31 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.m
 const root=document.querySelector("#game");
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x9bc9df);scene.fog=new THREE.Fog(0x9bc9df,85,190);
 const camera=new THREE.PerspectiveCamera(68,innerWidth/innerHeight,.1,400);
-const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.domElement.style.width="100%";renderer.domElement.style.height="100%";root.appendChild(renderer.domElement);
-scene.add(new THREE.HemisphereLight(0xe6f5ff,0x536b4d,2));
-const sun=new THREE.DirectionalLight(0xfff2d8,2.3);sun.position.set(-35,65,25);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);scene.add(sun);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;renderer.domElement.style.width="100%";renderer.domElement.style.height="100%";root.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xe6f5ff,0x536b4d,1.65));
+scene.add(new THREE.AmbientLight(0xffffff,.28));
+const sun=new THREE.DirectionalLight(0xfff2d8,2.3);sun.position.set(-35,65,25);sun.castShadow=true;sun.shadow.mapSize.set(3072,3072);sun.shadow.camera.left=-105;sun.shadow.camera.right=105;sun.shadow.camera.top=105;sun.shadow.camera.bottom=-105;sun.shadow.bias=-.00018;sun.shadow.normalBias=.025;sun.shadow.radius=3;scene.add(sun);
 const material=(c,r=.85)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
 const grass=material(0x528e52),sand=material(0xc9b77f),water=material(0x398eae),rock=material(0x697780),wood=material(0x765039),white=material(0xe6e8e8),blue=material(0x315e9c),dark=material(0x263341),skin=material(0xc98f68),shirt=material(0x2874a6),pants=material(0x27344a);
 const sea=new THREE.Mesh(new THREE.PlaneGeometry(500,500),water);sea.rotation.x=-Math.PI/2;sea.position.y=-2;scene.add(sea);
 const island=new THREE.Mesh(new THREE.CylinderGeometry(88,94,5,96),grass);island.position.y=-1.5;island.receiveShadow=true;scene.add(island);
-const ground=new THREE.Mesh(new THREE.CircleGeometry(85,96),grass);ground.rotation.x=-Math.PI/2;ground.position.y=1.02;ground.receiveShadow=true;scene.add(ground);
+function terrainHeight(x,z){
+ const hill=(cx,cz,amp,spread)=>amp*Math.exp(-((x-cx)**2+(z-cz)**2)/(2*spread*spread));
+ return 1.02+hill(29,18,5.2,17)+hill(-30,-18,4.2,15)+hill(4,48,3.4,13)+hill(-48,35,2.8,12)+.28*Math.sin(x*.075)*Math.cos(z*.06);
+}
+const terrainGeometry=new THREE.CircleGeometry(85,160);
+const terrainPositions=terrainGeometry.attributes.position;
+const terrainColors=[];
+for(let i=0;i<terrainPositions.count;i++){
+ const x=terrainPositions.getX(i),y=terrainPositions.getY(i),h=terrainHeight(x,y);
+ terrainPositions.setZ(i,h-1.02);
+ const shade=THREE.MathUtils.clamp(.82+(h-1.02)*.035+Math.sin(x*.19+Math.cos(y*.14))*.035,.72,1.12);
+ terrainColors.push(.30*shade,.49*shade,.25*shade);
+}
+terrainGeometry.setAttribute("color",new THREE.Float32BufferAttribute(terrainColors,3));
+terrainGeometry.computeVertexNormals();
+const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.96});
+const ground=new THREE.Mesh(terrainGeometry,terrainMat);ground.rotation.x=-Math.PI/2;ground.position.y=1.02;ground.receiveShadow=true;ground.castShadow=true;scene.add(ground);
 const beach=new THREE.Mesh(new THREE.RingGeometry(83,90,96),sand);beach.rotation.x=-Math.PI/2;beach.position.y=1.01;scene.add(beach);
 const obstacles=[];
 function block(x,z,w,h,d,mat=rock,y=1.02){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y+h/2,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);obstacles.push({x,z,hx:w/2,hz:d/2});return m;}
@@ -93,15 +110,15 @@ const rigSkeleton=new THREE.Skeleton(boneList);
 // Optional armature overlay for checking joint placement (press R).
 const rigHelper=new THREE.SkeletonHelper(player);rigHelper.visible=false;rigHelper.material.depthTest=false;rigHelper.material.transparent=true;rigHelper.material.opacity=.9;scene.add(rigHelper);
 let showRig=false;
-player.position.set(0,1.02,0);
+player.position.set(0,terrainHeight(0,0),0);
 const keys=new Set();addEventListener("keydown",e=>{if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();if(e.code==="KeyR"&&!e.repeat){showRig=!showRig;rigHelper.visible=showRig;}keys.add(e.code);});addEventListener("keyup",e=>keys.delete(e.code));addEventListener("blur",()=>keys.clear());
 document.querySelectorAll("[data-key]").forEach(b=>{const k=b.dataset.key;b.addEventListener("pointerdown",e=>{e.preventDefault();keys.add(k);b.setPointerCapture(e.pointerId)});for(const ev of ["pointerup","pointercancel","lostpointercapture"])b.addEventListener(ev,()=>keys.delete(k));});
-let yaw=0,pitch=.22,dragging=false,lastX=0,lastY=0;
+let yaw=0,pitch=.12,dragging=false,lastX=0,lastY=0;
 const crosshair=document.querySelector(".crosshair");
 addEventListener("pointermove",e=>{crosshair.style.left=e.clientX+"px";crosshair.style.top=e.clientY+"px";});
 renderer.domElement.addEventListener("pointerleave",()=>crosshair.style.opacity="0");renderer.domElement.addEventListener("pointerenter",()=>crosshair.style.opacity="1");
 renderer.domElement.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse"){dragging=true;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture(e.pointerId);}});
-renderer.domElement.addEventListener("pointermove",e=>{if(!dragging)return;yaw-=(e.clientX-lastX)*.006;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lastY)*.003,-.12,.65);lastX=e.clientX;lastY=e.clientY;});
+renderer.domElement.addEventListener("pointermove",e=>{if(!dragging)return;yaw-=(e.clientX-lastX)*.006;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lastY)*.003,-1.42,1.42);lastX=e.clientX;lastY=e.clientY;});
 renderer.domElement.addEventListener("pointerup",()=>dragging=false);renderer.domElement.addEventListener("pointercancel",()=>dragging=false);
 let verticalVelocity=0,onGround=true,velocity=new THREE.Vector3(),lastTime=performance.now(),walkPhase=0,landingPulse=0,idleClock=0;
 let slideTimer=0,slideDirection=new THREE.Vector3(),slideWasPressed=false;
@@ -125,7 +142,8 @@ else{const response=input.lengthSq()?11:8;velocity.x=THREE.MathUtils.damp(veloci
 moveAxis(velocity.x*dt,velocity.z*dt);
 if(keys.has("Space")&&onGround){verticalVelocity=8.1;onGround=false;}
 verticalVelocity-=22*dt;player.position.y+=verticalVelocity*dt;
-if(player.position.y<=1.02){player.position.y=1.02;verticalVelocity=0;onGround=true;}
+const floorY=terrainHeight(player.position.x,player.position.z);
+if(player.position.y<=floorY){player.position.y=floorY;verticalVelocity=0;onGround=true;}
 const horizontalSpeed=Math.hypot(velocity.x,velocity.z);
 const moving=horizontalSpeed>.25;
 const lowProfile=slideTimer>0;
@@ -175,7 +193,13 @@ arms.forEach((arm,i)=>{
 });
 player.scale.y=THREE.MathUtils.damp(player.scale.y,1-landing*.08,16,dt);
 document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
-const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);const distance=7.5;const offset=new THREE.Vector3(Math.sin(yaw)*distance,2.5+pitch*4,Math.cos(yaw)*distance);const desiredCamera=target.clone().add(offset);camera.position.lerp(desiredCamera,1-Math.exp(-7*dt));camera.lookAt(target);
+const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);
+const distance=7.5,cp=Math.cos(pitch);
+const offset=new THREE.Vector3(Math.sin(yaw)*cp*distance,Math.sin(pitch)*distance,Math.cos(yaw)*cp*distance);
+const desiredCamera=target.clone().add(offset);
+const cameraFloor=terrainHeight(desiredCamera.x,desiredCamera.z)+.55;
+if(desiredCamera.y<cameraFloor)desiredCamera.y=cameraFloor;
+camera.position.lerp(desiredCamera,1-Math.exp(-7*dt));camera.lookAt(target);
 renderer.render(scene,camera);
 }
 requestAnimationFrame(animate);
