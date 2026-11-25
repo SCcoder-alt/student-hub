@@ -38,12 +38,46 @@ block(-18,-12,12,5,2,wood);block(-18,-18,2,5,10,wood);block(-7,-17,2,5,10,wood);
 // Low practice barriers and a simple raised platform.
 block(0,-37,24,1.3,2,white);block(-28,-32,2,1.3,16,white);block(28,34,2,1.3,16,white);
 const platform=new THREE.Mesh(new THREE.BoxGeometry(15,1,10),material(0x8b9ca8));platform.position.set(0,1.6,17);platform.castShadow=true;platform.receiveShadow=true;scene.add(platform);
-// Player model: a simple readable third-person character, not a final avatar.
+// Semi-realistic lightweight character assembled from articulated low-poly meshes.
 const player=new THREE.Group();scene.add(player);
-const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.48,.85,5,10),shirt);torso.position.y=1.55;torso.castShadow=true;player.add(torso);
-const head=new THREE.Mesh(new THREE.SphereGeometry(.34,16,12),skin);head.position.y=2.42;head.castShadow=true;player.add(head);
-const hair=new THREE.Mesh(new THREE.SphereGeometry(.35,16,8,0,Math.PI*2,0,Math.PI*.55),dark);hair.position.y=2.53;player.add(hair);
-for(const x of [-.24,.24]){const leg=new THREE.Mesh(new THREE.CapsuleGeometry(.17,.62,4,8),pants);leg.position.set(x,.55,0);leg.castShadow=true;player.add(leg);const arm=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.62,4,8),shirt);arm.position.set(x<0?-.57:.57,1.57,0);arm.rotation.z=x<0?-.12:.12;player.add(arm);}
+const cloth=material(0x354b5d),clothLight=material(0x536a78),trim=material(0xb08a55),bootMat=material(0x242c32),gloveMat=material(0x343d43),skinMat=material(0xc88f6c),hairMat=material(0x302a28),eyeMat=material(0x20272c),packMat=material(0x394d43);
+function part(parent,geo,mat,pos,rot){const m=new THREE.Mesh(geo,mat);m.position.set(...pos);if(rot)m.rotation.set(...rot);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
+function limb(parent,r,len,mat,pos){return part(parent,new THREE.CapsuleGeometry(r,len,5,9),mat,pos);}
+const torsoGroup=new THREE.Group();torsoGroup.position.y=1.48;player.add(torsoGroup);
+limb(torsoGroup,.39,.62,cloth,[0,.02,0]);
+part(torsoGroup,new THREE.BoxGeometry(.68,.25,.39),pants,[0,-.48,0]);
+part(torsoGroup,new THREE.BoxGeometry(.78,.78,.12),clothLight,[0,.02,.245]);
+part(torsoGroup,new THREE.BoxGeometry(.7,.1,.42),trim,[0,-.43,.015]);
+part(torsoGroup,new THREE.BoxGeometry(.15,.48,.035),trim,[0,.02,.31]);
+part(torsoGroup,new THREE.BoxGeometry(.18,.28,.22),packMat,[0,.12,-.31]);
+part(torsoGroup,new THREE.BoxGeometry(.46,.1,.08),packMat,[0,.48,-.27]);
+const neck=part(torsoGroup,new THREE.CylinderGeometry(.12,.14,.2,10),skinMat,[0,.48,0]);
+const headGroup=new THREE.Group();headGroup.position.set(0,.76,.015);torsoGroup.add(headGroup);
+part(headGroup,new THREE.SphereGeometry(.265,18,14),skinMat,[0,.08,0]);
+part(headGroup,new THREE.SphereGeometry(.275,18,10,0,Math.PI*2,0,Math.PI*.48),hairMat,[0,.18,-.015]);
+part(headGroup,new THREE.BoxGeometry(.28,.09,.25),hairMat,[0,.29,.005]);
+for(const x of [-.105,.105]){
+ part(headGroup,new THREE.SphereGeometry(.025,8,8),eyeMat,[x,.095,.245]);
+ part(headGroup,new THREE.SphereGeometry(.055,8,8),skinMat,[x*2.35,.045,.005]);
+}
+part(headGroup,new THREE.SphereGeometry(.035,8,8),skinMat,[0,.015,.255]);
+const legs=[],arms=[];
+for(const side of [-1,1]){
+ const leg=new THREE.Group();leg.position.set(side*.22,-.42,0);player.add(leg);legs.push(leg);
+ limb(leg,.17,.39,pants,[0,-.29,0]);
+ part(leg,new THREE.BoxGeometry(.31,.2,.34),clothLight,[0,-.49,.005]);
+ const knee=part(leg,new THREE.SphereGeometry(.17,10,8),pants,[0,-.53,.025]);
+ part(leg,new THREE.BoxGeometry(.27,.18,.06),trim,[0,-.53,.17]);
+ const shin=part(leg,new THREE.CapsuleGeometry(.125,.31,4,8),pants,[0,-.78,0]);
+ part(leg,new THREE.BoxGeometry(.29,.17,.43),bootMat,[0,-1.02,.075]);
+ part(leg,new THREE.BoxGeometry(.3,.045,.4),gloveMat,[0,-1.11,.075]);
+ const arm=new THREE.Group();arm.position.set(side*.46,.39,0);torsoGroup.add(arm);arms.push(arm);
+ limb(arm,.145,.34,clothLight,[side*.025,-.27,0]);
+ part(arm,new THREE.SphereGeometry(.15,10,8),cloth,[side*.025,-.52,0]);
+ limb(arm,.115,.31,cloth,[side*.035,-.76,.015]);
+ part(arm,new THREE.BoxGeometry(.24,.18,.24),gloveMat,[side*.035,-1.02,.045]);
+ part(arm,new THREE.BoxGeometry(.32,.16,.32),trim,[side*.025,-.48,.015]);
+}
 player.position.set(0,1.02,0);
 const keys=new Set();addEventListener("keydown",e=>{if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();keys.add(e.code);});addEventListener("keyup",e=>keys.delete(e.code));addEventListener("blur",()=>keys.clear());
 document.querySelectorAll("[data-key]").forEach(b=>{const k=b.dataset.key;b.addEventListener("pointerdown",e=>{e.preventDefault();keys.add(k);b.setPointerCapture(e.pointerId)});for(const ev of ["pointerup","pointercancel","lostpointercapture"])b.addEventListener(ev,()=>keys.delete(k));});
@@ -80,7 +114,7 @@ if(player.position.y<=1.02){player.position.y=1.02;verticalVelocity=0;onGround=t
 const moving=Math.hypot(velocity.x,velocity.z)>.25;
 const lowProfile=slideTimer>0;player.scale.y=THREE.MathUtils.damp(player.scale.y,lowProfile ? .48 : (crouch ? .72 : 1),14,dt);
 if(moving){const target=Math.atan2(velocity.x,velocity.z);let diff=Math.atan2(Math.sin(target-player.rotation.y),Math.cos(target-player.rotation.y));player.rotation.y+=diff*Math.min(1,dt*12);walkPhase+=dt*(sprint?13:9);}
-player.children.forEach((c,i)=>{if(i===3||i===4)c.rotation.x=moving?Math.sin(walkPhase+(i===4?Math.PI:0))*.45:0;if(i===5||i===6)c.rotation.x=moving?Math.sin(walkPhase+(i===5?Math.PI:0))*.22:0;});
+legs.forEach((leg,i)=>{const phase=walkPhase+(i===0?Math.PI:0);const swing=moving?Math.sin(phase)*(sprint?.72:.48):0;leg.rotation.x=THREE.MathUtils.damp(leg.rotation.x,swing,12,dt);});arms.forEach((arm,i)=>{const phase=walkPhase+(i===0?Math.PI:0);const swing=moving?Math.sin(phase+(sprint?0:Math.PI))*(sprint?.52:.3):0;arm.rotation.x=THREE.MathUtils.damp(arm.rotation.x,swing,12,dt);arm.rotation.z=THREE.MathUtils.damp(arm.rotation.z,(i===0?-.08:.08)+(lowProfile?.45:0),10,dt);});torsoGroup.rotation.x=THREE.MathUtils.damp(torsoGroup.rotation.x,lowProfile?.42:(crouch?.12:0),10,dt);
 const horizontalSpeed=Math.hypot(velocity.x,velocity.z);document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
 const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile ? .85 : (crouch ? 1.12 : 1.45)),player.position.z);const distance=7.5;const offset=new THREE.Vector3(Math.sin(yaw)*distance,2.5+pitch*4,Math.cos(yaw)*distance);const desiredCamera=target.clone().add(offset);camera.position.lerp(desiredCamera,1-Math.exp(-7*dt));camera.lookAt(target);
 renderer.render(scene,camera);
