@@ -309,7 +309,7 @@ player.updateMatrixWorld(true);
 const initialRigBounds=new THREE.Box3().setFromObject(player);
 const PLAYER_ROOT_OFFSET=-initialRigBounds.min.y+.025;
 player.position.set(0,terrainHeight(0,0)+PLAYER_ROOT_OFFSET,0);
-const keys=new Set();addEventListener("keydown",e=>{if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();if(e.code==="KeyR"&&!e.repeat){showRig=!showRig;rigHelper.visible=showRig;}keys.add(e.code);});addEventListener("keyup",e=>keys.delete(e.code));addEventListener("blur",()=>keys.clear());
+const keys=new Set();renderer.domElement.tabIndex=0;renderer.domElement.style.outline="none";renderer.domElement.addEventListener("pointerdown",()=>renderer.domElement.focus({preventScroll:true}));document.addEventListener("keydown",e=>{if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();if(e.code==="KeyR"&&!e.repeat){showRig=!showRig;rigHelper.visible=showRig;}if(["KeyW","KeyA","KeyS","KeyD","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","ShiftLeft","ShiftRight","Space","KeyC","ControlLeft","ControlRight"].includes(e.code))keys.add(e.code);},true);document.addEventListener("keyup",e=>keys.delete(e.code),true);window.addEventListener("blur",()=>keys.clear());document.addEventListener("visibilitychange",()=>{if(document.hidden)keys.clear();});
 document.querySelectorAll("[data-key]").forEach(b=>{const k=b.dataset.key;b.addEventListener("pointerdown",e=>{e.preventDefault();keys.add(k);b.setPointerCapture(e.pointerId)});for(const ev of ["pointerup","pointercancel","lostpointercapture"])b.addEventListener(ev,()=>keys.delete(k));});
 let yaw=0,pitch=.12,dragging=false,lastX=0,lastY=0;
 const crosshair=document.querySelector(".crosshair");
