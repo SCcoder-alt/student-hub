@@ -5,7 +5,7 @@
 <title>Last One Standing | Movement Test</title>
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#10243a;color:#fff;font-family:Inter,system-ui,Arial,sans-serif}canvas{display:block}
-#game{position:fixed;inset:0}.hud{position:fixed;inset:14px 14px auto;display:flex;justify-content:space-between;gap:12px;pointer-events:none}.pill,.help{background:#101d2ddd;border:1px solid #ffffff26;border-radius:13px;padding:10px 14px;backdrop-filter:blur(8px)}.pill{font-weight:800}.pill small{display:block;color:#a9bdd2;font-size:10px;letter-spacing:.13em}.help{position:fixed;left:14px;bottom:14px;max-width:360px;color:#d7e3ef;font-size:12px;line-height:1.55}.help b{color:#fff}.status{position:fixed;right:14px;bottom:14px;background:#101d2ddd;border:1px solid #ffffff26;border-radius:12px;padding:10px 13px;font-size:12px;color:#c8d8e8}.crosshair{position:fixed;left:50%;top:50%;width:5px;height:5px;border-radius:50%;background:#fff8;box-shadow:0 0 0 2px #14263b55;pointer-events:none}.back{position:fixed;top:14px;left:50%;transform:translateX(-50%);color:#d9e8f7;text-decoration:none;font-size:12px;font-weight:800;background:#101d2ddd;padding:10px 13px;border-radius:12px;border:1px solid #ffffff26}.mobile{display:none;position:fixed;bottom:100px;left:14px;right:14px;justify-content:space-between;pointer-events:none}.pad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:5px;pointer-events:auto}.pad button,.jump{border:1px solid #ffffff55;border-radius:12px;background:#14263bd9;color:#fff;font-size:18px;font-weight:900;touch-action:none}.pad button:active,.jump:active{background:#416f9e}.pad .up{grid-column:2}.pad .left{grid-column:1;grid-row:2}.pad .down{grid-column:2;grid-row:2}.pad .right{grid-column:3;grid-row:2}.jump{width:64px;height:64px;pointer-events:auto;align-self:end}
+#game{position:fixed;inset:0}.hud{position:fixed;inset:14px 14px auto;display:flex;justify-content:space-between;gap:12px;pointer-events:none}.pill,.help{background:#101d2ddd;border:1px solid #ffffff26;border-radius:13px;padding:10px 14px;backdrop-filter:blur(8px)}.pill{font-weight:800}.pill small{display:block;color:#a9bdd2;font-size:10px;letter-spacing:.13em}.help{position:fixed;left:14px;bottom:14px;max-width:360px;color:#d7e3ef;font-size:12px;line-height:1.55}.help b{color:#fff}.status{position:fixed;right:14px;bottom:14px;background:#101d2ddd;border:1px solid #ffffff26;border-radius:12px;padding:10px 13px;font-size:12px;color:#c8d8e8}.crosshair{position:fixed;left:50%;top:50%;width:9px;height:9px;border:1px solid #fff;background:#ffffff22;border-radius:50%;box-shadow:0 0 0 1px #14263b99;pointer-events:none;transform:translate(-50%,-50%);z-index:5}.back{position:fixed;top:14px;left:50%;transform:translateX(-50%);color:#d9e8f7;text-decoration:none;font-size:12px;font-weight:800;background:#101d2ddd;padding:10px 13px;border-radius:12px;border:1px solid #ffffff26}.mobile{display:none;position:fixed;bottom:100px;left:14px;right:14px;justify-content:space-between;pointer-events:none}.pad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:5px;pointer-events:auto}.pad button,.jump{border:1px solid #ffffff55;border-radius:12px;background:#14263bd9;color:#fff;font-size:18px;font-weight:900;touch-action:none}.pad button:active,.jump:active{background:#416f9e}.pad .up{grid-column:2}.pad .left{grid-column:1;grid-row:2}.pad .down{grid-column:2;grid-row:2}.pad .right{grid-column:3;grid-row:2}.jump{width:64px;height:64px;pointer-events:auto;align-self:end}
 @media(max-width:760px){.mobile{display:flex}.help{bottom:14px;max-width:calc(100% - 28px);font-size:10px}.status{display:none}.back{top:72px}.hud{inset:12px 12px auto}.pill{font-size:12px;padding:8px 10px}}
 </style>
 </head>
@@ -13,7 +13,7 @@
 <div class="hud"><div class="pill"><small>LAST ONE STANDING</small>Movement test island</div><div class="pill" id="speed">0 m/s</div></div>
 <a class="back" href="index.html#arcade">← HUB ARCADE</a>
 <div class="crosshair"></div>
-<div class="help"><b>CONTROLS</b><br>WASD / arrows: move · Shift: sprint · Space: jump<br>Drag mouse: rotate camera · Release mouse: look around<br><span style="color:#9fb5c9">Prototype 01 — movement, camera, jumping and solid obstacles. Multiplayer is not connected yet.</span></div>
+<div class="help"><b>CONTROLS</b><br>WASD / arrows: move · Shift: sprint · Space: jump<br>C: crouch · Ctrl while sprinting: slide<br>Move mouse: aim marker follows cursor · Drag: rotate camera<br><span style="color:#9fb5c9">Prototype 01 — movement, camera, jumping and solid obstacles. Multiplayer is not connected yet.</span></div>
 <div class="status" id="state">Ready · On foot</div>
 <div class="mobile"><div class="pad"><button class="up" data-key="KeyW">▲</button><button class="left" data-key="KeyA">◀</button><button class="down" data-key="KeyS">▼</button><button class="right" data-key="KeyD">▶</button></div><button class="jump" data-key="Space">JUMP</button></div>
 <script type="module">
@@ -48,29 +48,41 @@ player.position.set(0,1.02,0);
 const keys=new Set();addEventListener("keydown",e=>{if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code))e.preventDefault();keys.add(e.code);});addEventListener("keyup",e=>keys.delete(e.code));addEventListener("blur",()=>keys.clear());
 document.querySelectorAll("[data-key]").forEach(b=>{const k=b.dataset.key;b.addEventListener("pointerdown",e=>{e.preventDefault();keys.add(k);b.setPointerCapture(e.pointerId)});for(const ev of ["pointerup","pointercancel","lostpointercapture"])b.addEventListener(ev,()=>keys.delete(k));});
 let yaw=0,pitch=.22,dragging=false,lastX=0,lastY=0;
+const crosshair=document.querySelector(".crosshair");
+addEventListener("pointermove",e=>{crosshair.style.left=e.clientX+"px";crosshair.style.top=e.clientY+"px";});
+renderer.domElement.addEventListener("pointerleave",()=>crosshair.style.opacity="0");renderer.domElement.addEventListener("pointerenter",()=>crosshair.style.opacity="1");
 renderer.domElement.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse"){dragging=true;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture(e.pointerId);}});
 renderer.domElement.addEventListener("pointermove",e=>{if(!dragging)return;yaw-=(e.clientX-lastX)*.006;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lastY)*.003,-.12,.65);lastX=e.clientX;lastY=e.clientY;});
 renderer.domElement.addEventListener("pointerup",()=>dragging=false);renderer.domElement.addEventListener("pointercancel",()=>dragging=false);
 let verticalVelocity=0,onGround=true,velocity=new THREE.Vector3(),lastTime=performance.now(),walkPhase=0;
+let slideTimer=0,slideDirection=new THREE.Vector3();
 const radius=.55,clock=new THREE.Clock();
 function collides(x,z){if(Math.hypot(x,z)>81)return true;for(const o of obstacles){const dx=Math.max(Math.abs(x-o.x)-o.hx,0),dz=Math.max(Math.abs(z-o.z)-o.hz,0);if(dx*dx+dz*dz<radius*radius)return true;}return false;}
 function moveAxis(dx,dz){let nx=player.position.x+dx,nz=player.position.z+dz;if(!collides(nx,player.position.z))player.position.x=nx;if(!collides(player.position.x,nz))player.position.z=nz;}
 function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-lastTime)/1000,.04);lastTime=now;
 const forward=(keys.has("KeyW")||keys.has("ArrowUp")?1:0)-(keys.has("KeyS")||keys.has("ArrowDown")?1:0);
 const sideways=(keys.has("KeyD")||keys.has("ArrowRight")?1:0)-(keys.has("KeyA")||keys.has("ArrowLeft")?1:0);
-const sprint=keys.has("ShiftLeft")||keys.has("ShiftRight");const maxSpeed=sprint?10:6.2;
+const sprint=keys.has("ShiftLeft")||keys.has("ShiftRight");
+const crouch=keys.has("KeyC");
+const sliding=slideTimer>0;
+const maxSpeed=crouch?3.2:(sprint?10:6.2);
 const input=new THREE.Vector3(sideways,0,forward);if(input.lengthSq()>1)input.normalize();
+const slidePressed=keys.has("ControlLeft")||keys.has("ControlRight");
+if(slidePressed&&sprint&&onGround&&!sliding&&input.lengthSq()>.1){slideTimer=.78;slideDirection.set(velocity.x,0,velocity.z);if(slideDirection.lengthSq()<1)slideDirection.set(input.x,0,input.z).applyAxisAngle(new THREE.Vector3(0,1,0),-yaw);slideDirection.normalize();}
 const cameraForward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));const cameraRight=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
 const desired=new THREE.Vector3().addScaledVector(cameraRight,input.x).addScaledVector(cameraForward,input.z).multiplyScalar(maxSpeed);
-const response=input.lengthSq()?11:8;velocity.x=THREE.MathUtils.damp(velocity.x,desired.x,response,dt);velocity.z=THREE.MathUtils.damp(velocity.z,desired.z,response,dt);
+if(slideTimer>0){slideTimer=Math.max(0,slideTimer-dt);velocity.x=THREE.MathUtils.damp(velocity.x,slideDirection.x*13,2.0,dt);velocity.z=THREE.MathUtils.damp(velocity.z,slideDirection.z*13,2.0,dt);}
+else{const response=input.lengthSq()?11:8;velocity.x=THREE.MathUtils.damp(velocity.x,desired.x,response,dt);velocity.z=THREE.MathUtils.damp(velocity.z,desired.z,response,dt);}
 moveAxis(velocity.x*dt,velocity.z*dt);
 if(keys.has("Space")&&onGround){verticalVelocity=8.1;onGround=false;}
 verticalVelocity-=22*dt;player.position.y+=verticalVelocity*dt;
 if(player.position.y<=1.02){player.position.y=1.02;verticalVelocity=0;onGround=true;}
-const moving=Math.hypot(velocity.x,velocity.z)>.25;if(moving){const target=Math.atan2(velocity.x,velocity.z);let diff=Math.atan2(Math.sin(target-player.rotation.y),Math.cos(target-player.rotation.y));player.rotation.y+=diff*Math.min(1,dt*12);walkPhase+=dt*(sprint?13:9);}
+const moving=Math.hypot(velocity.x,velocity.z)>.25;
+const lowProfile=slideTimer>0;player.scale.y=THREE.MathUtils.damp(player.scale.y,lowProfile?.48:(crouch?.72:1),14,dt);
+if(moving){const target=Math.atan2(velocity.x,velocity.z);let diff=Math.atan2(Math.sin(target-player.rotation.y),Math.cos(target-player.rotation.y));player.rotation.y+=diff*Math.min(1,dt*12);walkPhase+=dt*(sprint?13:9);}
 player.children.forEach((c,i)=>{if(i===3||i===4)c.rotation.x=moving?Math.sin(walkPhase+(i===4?Math.PI:0))*.45:0;if(i===5||i===6)c.rotation.x=moving?Math.sin(walkPhase+(i===5?Math.PI:0))*.22:0;});
-const horizontalSpeed=Math.hypot(velocity.x,velocity.z);document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(onGround?"On foot":"Airborne")+" · "+(sprint&&moving?"Sprinting":moving?"Moving":"Standing");
-const target=new THREE.Vector3(player.position.x,player.position.y+1.45,player.position.z);const distance=7.5;const offset=new THREE.Vector3(Math.sin(yaw)*distance,2.5+pitch*4,Math.cos(yaw)*distance);const desiredCamera=target.clone().add(offset);camera.position.lerp(desiredCamera,1-Math.exp(-7*dt));camera.lookAt(target);
+const horizontalSpeed=Math.hypot(velocity.x,velocity.z);document.querySelector("#speed").textContent=horizontalSpeed.toFixed(1)+" m/s";document.querySelector("#state").textContent=(lowProfile?"Sliding":!onGround?"Airborne":crouch?"Crouching":sprint&&moving?"Sprinting":moving?"Moving":"Standing")+" · "+(onGround?"Grounded":"In air");
+const target=new THREE.Vector3(player.position.x,player.position.y+(lowProfile?.85:crouch?1.12:1.45),player.position.z);const distance=7.5;const offset=new THREE.Vector3(Math.sin(yaw)*distance,2.5+pitch*4,Math.cos(yaw)*distance);const desiredCamera=target.clone().add(offset);camera.position.lerp(desiredCamera,1-Math.exp(-7*dt));camera.lookAt(target);
 renderer.render(scene,camera);
 }
 requestAnimationFrame(animate);
