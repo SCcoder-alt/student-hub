@@ -63,7 +63,7 @@ for(const x of [-.105,.105]){
 part(headGroup,new THREE.SphereGeometry(.035,8,8),skinMat,[0,.015,.255]);
 const legs=[],arms=[];
 for(const side of [-1,1]){
- const leg=new THREE.Group();leg.position.set(side*.22,-.42,0);player.add(leg);legs.push(leg);
+ const leg=new THREE.Group();leg.position.set(side*.22,.95,0);player.add(leg);legs.push(leg);
  limb(leg,.17,.39,pants,[0,-.29,0]);
  part(leg,new THREE.BoxGeometry(.31,.2,.34),clothLight,[0,-.49,.005]);
  const knee=part(leg,new THREE.SphereGeometry(.17,10,8),pants,[0,-.53,.025]);
